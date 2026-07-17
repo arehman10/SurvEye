@@ -340,7 +340,7 @@ For a map-enabled dashboard, the harness should allow or deliberately stub the d
 
 ## Author
 
-Attique Ur Rehman  
+Attique Ur Rehman  (co-developed with gpt 5.6 sol)
 Enterprise Analysis Unit, World Bank
 
 - Repository: <https://github.com/arehman10/SurvEye>
