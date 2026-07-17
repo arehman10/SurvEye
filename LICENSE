@@ -1,0 +1,76 @@
+#!/usr/bin/env sh
+set -eu
+
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+FIXTURES=${1:-"$ROOT/tests/fixtures"}
+BUILD=$(mktemp -d "${TMPDIR:-/tmp}/surveye-engine.XXXXXX")
+trap 'rm -rf "$BUILD"' EXIT HUP INT TERM
+ENGINE_JAR="$ROOT/surveye_2_0_0.jar"
+CLI_JAR="$ROOT/surveye.jar"
+
+if [ ! -f "$ENGINE_JAR" ] || [ ! -f "$CLI_JAR" ]; then
+  echo "Engine JARs not found; run ./build.sh first." >&2
+  exit 2
+fi
+if ! cmp -s "$ENGINE_JAR" "$CLI_JAR"; then
+  echo "Release-specific and generic engine JARs differ." >&2
+  exit 2
+fi
+if [ ! -d "$FIXTURES" ]; then
+  echo "Fixture directory not found: $FIXTURES" >&2
+  echo "Usage: tests/run_engine_smoke.sh /path/to/questionnaire-html-directory" >&2
+  exit 2
+fi
+
+java -m jdk.compiler/com.sun.tools.javac.Main --release 8 \
+  -cp "$ENGINE_JAR" \
+  -d "$BUILD" \
+  "$ROOT/tests/StataEntryPointSmokeTest.java" \
+  "$ROOT/tests/StataBridgeLinkageTest.java" \
+  "$ROOT/tests/DashboardI18nTest.java" \
+  "$ROOT/tests/WeightContractTest.java" \
+  "$ROOT/tests/DateFormatMetadataContractTest.java" \
+  "$ROOT/tests/CompletionMissingContractTest.java" \
+  "$ROOT/tests/MapFilterLocalizationContractTest.java" \
+  "$ROOT/tests/CalculatedVariableLabelContractTest.java"
+
+java -cp "$BUILD:$ENGINE_JAR" StataEntryPointSmokeTest "$ROOT" "$FIXTURES"
+java -cp "$BUILD:$ENGINE_JAR" DashboardI18nTest
+java -cp "$BUILD:$ENGINE_JAR" WeightContractTest "$ROOT"
+java -cp "$BUILD:$ENGINE_JAR" DateFormatMetadataContractTest "$ROOT"
+java -cp "$BUILD:$ENGINE_JAR" CompletionMissingContractTest "$ROOT"
+java -cp "$BUILD:$ENGINE_JAR" MapFilterLocalizationContractTest "$ROOT"
+java -cp "$BUILD:$ENGINE_JAR" CalculatedVariableLabelContractTest "$ROOT"
+
+# Run the adapter without the default-package engine on its class path.  This
+# forces a bridge-level ClassNotFoundException and verifies that even a linkage
+# failure is converted into the fallback status-file contract expected by ado.
+mkdir -p "$BUILD/bridge-only/org/worldbank/surveye"
+unzip -p "$ENGINE_JAR" org/worldbank/surveye/StataPlugin.class \
+  > "$BUILD/bridge-only/org/worldbank/surveye/StataPlugin.class"
+java -cp "$BUILD/bridge-only:$BUILD" StataBridgeLinkageTest
+
+# Exercise the real CLI entry point as a separate process.  In describe mode,
+# a status/config alias would truncate the configuration file if --config did
+# not register that input as protected before validation and status writing.
+QUESTIONNAIRE="$FIXTURES/English ES_B_READY_2025_Australia(4).html"
+if [ ! -f "$QUESTIONNAIRE" ]; then
+  QUESTIONNAIRE="$ROOT/tests/fixed_multi_questionnaire.html"
+fi
+CLI_CONFIG="$BUILD/cli-collision.tsv"
+CLI_CONFIG_BEFORE="$BUILD/cli-collision.before"
+CLI_LOG="$BUILD/cli-collision.log"
+{
+  printf 'mode\tdescribe\n'
+  printf 'questionnaire\t%s\n' "$QUESTIONNAIRE"
+  printf 'status\t%s/./%s\n' "$BUILD" "$(basename "$CLI_CONFIG")"
+} > "$CLI_CONFIG"
+cp "$CLI_CONFIG" "$CLI_CONFIG_BEFORE"
+
+if java -jar "$CLI_JAR" --config "$CLI_CONFIG" > "$CLI_LOG" 2>&1; then
+  echo "CLI --config accepted an unsafe status/config alias." >&2
+  exit 1
+fi
+cmp "$CLI_CONFIG_BEFORE" "$CLI_CONFIG"
+grep -F "Status file may not overwrite the configuration file." "$CLI_LOG" >/dev/null
+echo "PASS CLI --config path-collision protection"

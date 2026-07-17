@@ -1,0 +1,8 @@
+build/
+release/
+*.class
+suso_dashboard*.jar
+surveydash*.jar
+node_modules/
+tests/qa-output/
+.DS_Store
