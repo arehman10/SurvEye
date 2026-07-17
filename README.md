@@ -32,11 +32,6 @@ net install surveye, from("https://raw.githubusercontent.com/arehman10/SurvEye/m
 discard
 ```
 
-After publication on SSC, the shorter equivalent will be:
-
-```stata
-ssc install surveye
-```
 
 Verify the wrapper, release-specific engine, and help file:
 
@@ -59,26 +54,8 @@ The Java engine, Chart.js, Leaflet, fonts, and styles are bundled. Users do not
 need to install a separate Stata dependency, Java library, web server, Node.js,
 or browser extension.
 
-### If GitHub installation returns `r(601)`
 
-Confirm that the repository is public and that these two addresses open as
-plain text in a browser:
-
-- <https://raw.githubusercontent.com/arehman10/SurvEye/main/stata.toc>
-- <https://raw.githubusercontent.com/arehman10/SurvEye/main/surveye.pkg>
-
-Then retry the copy-ready command above. The package files must be at the
-repository root, not inside a ZIP file or an enclosing `surveye-2.0.0` folder.
-If an earlier SurvEye JAR was already used in the current Stata session, fully
-restart Stata after reinstalling; the JVM can retain a loaded JAR until Stata
-exits. Regenerate previously created dashboards to receive the new interface.
-
-Version 2.0.0 introduces the SurvEye name and the public command/SSC package
-`surveye`. Scripts written for the former `suso_dashboard` command or the
-interim `surveydash` preview must replace that name with `surveye`; no legacy
-compatibility command is installed.
-
-## Two-minute start
+## Getting Started
 
 Inspect a questionnaire without loading data:
 
