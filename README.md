@@ -3,10 +3,10 @@
 **Author:** Attique Ur Rehman, Enterprise Analysis Unit, World Bank  
 **Development assistance:** Developed with help of GPT-5.6 Sol Ultra.
 
-[Repository](https://github.com/arehman10/SurvEye) Â·
-[Report a problem](https://github.com/arehman10/SurvEye/issues) Â·
-[Stata help](surveye.sthlp) Â·
-[Examples](example.do) Â·
+[Repository](https://github.com/arehman10/SurvEye) ·
+[Report a problem](https://github.com/arehman10/SurvEye/issues) ·
+[Stata help](surveye.sthlp) ·
+[Examples](example.do) ·
 [Changelog](CHANGELOG.md)
 
 SurvEye is a Stata 16+ tool, distributed as the command `surveye`, that turns a Survey Solutions questionnaire HTML file and the corresponding Stata data into a polished, interactive HTML dashboard. Questionnaire text supplies the labels, sections, response order, and categories; the command adds compact charts, filters, messages, custom data variables, native Stata weights, optional confidence intervals, outlier-aware numeric summaries, a localized right-to-left interface, and an optional Leaflet country map.
@@ -18,7 +18,7 @@ The command has deliberately useful defaults:
 - categorical cards are kept uncluttered by default; add `ci` when intervals are useful on eligible bars;
 - numeric cards combine an outlier-aware distribution with a detailed **Stats** tab;
 - `uilanguage(auto)` translates the interface and selects right-to-left layout for Arabic and Urdu questionnaires;
-- GPS maps use individual points over Google Hybrid by defaultâ€”nearby observations are not collapsed unless requested; and
+- GPS maps use individual points over Google Hybrid by default—nearby observations are not collapsed unless requested; and
 - the dataset in memory is preserved while a temporary UTF-8 raw-code CSV is passed to the bundled Java engine through Stata's `javacall` interface.
 
 Chart.js, Leaflet, styles, selected data, logos, and boundary geometry are embedded in the output. A dashboard without a map has no runtime network dependency. A map-enabled dashboard needs internet access to fetch the selected Google or OpenStreetMap tiles; it never uploads the survey data.
@@ -32,6 +32,11 @@ net install surveye, from("https://raw.githubusercontent.com/arehman10/SurvEye/m
 discard
 ```
 
+After publication on SSC, the shorter equivalent will be:
+
+```stata
+ssc install surveye
+```
 
 Verify the wrapper, release-specific engine, and help file:
 
@@ -54,8 +59,26 @@ The Java engine, Chart.js, Leaflet, fonts, and styles are bundled. Users do not
 need to install a separate Stata dependency, Java library, web server, Node.js,
 or browser extension.
 
+### If GitHub installation returns `r(601)`
 
-## Getting Started
+Confirm that the repository is public and that these two addresses open as
+plain text in a browser:
+
+- <https://raw.githubusercontent.com/arehman10/SurvEye/main/stata.toc>
+- <https://raw.githubusercontent.com/arehman10/SurvEye/main/surveye.pkg>
+
+Then retry the copy-ready command above. The package files must be at the
+repository root, not inside a ZIP file or an enclosing `surveye-2.0.0` folder.
+If an earlier SurvEye JAR was already used in the current Stata session, fully
+restart Stata after reinstalling; the JVM can retain a loaded JAR until Stata
+exits. Regenerate previously created dashboards to receive the new interface.
+
+Version 2.0.0 introduces the SurvEye name and the public command/SSC package
+`surveye`. Scripts written for the former `suso_dashboard` command or the
+interim `surveydash` preview must replace that name with `surveye`; no legacy
+compatibility command is installed.
+
+## Two-minute start
 
 Inspect a questionnaire without loading data:
 
@@ -93,7 +116,7 @@ surveye build [varlist] [if] [in] using questionnaire.html [pw=pop], ///
 surveye build build sales using questionnaire.html, saving(filename)
 ```
 
-The weight specification is optional and must name one variable. Use Stata's native syntaxâ€”`[aw=wmedian]`, `[fw=frequency]`, `[iw=importance]`, or `[pw=pop]`â€”after the `using` filename and before the comma. There is deliberately no `weight()` option.
+The weight specification is optional and must name one variable. Use Stata's native syntax—`[aw=wmedian]`, `[fw=frequency]`, `[iw=importance]`, or `[pw=pop]`—after the `using` filename and before the comma. There is deliberately no `weight()` option.
 
 | Goal | Options |
 |---|---|
@@ -172,7 +195,7 @@ Only variables declared in `customvars()` may be named in `addtosections()`. An 
 
 ## Arabic, Urdu, and right-to-left dashboards
 
-`uilanguage(auto)` is the default. It gives priority to a questionnaire language declaration of Arabic (`ar`) or Urdu (`ur`). Otherwise, it inspects questionnaire titles, section headings, questions, and response labels: predominantly Arabic-script text selects Arabic, with Urdu-specific characters selecting Urdu; incidental Arabic text in an otherwise non-Arabic questionnaire does not change the interface. Other content selects English. The dashboard interfaceâ€”not the questionnaire textâ€”is translated. Accepted values are `auto`, `english`, `arabic`, and `urdu`; the short aliases `en`, `ar`, and `ur` are also accepted.
+`uilanguage(auto)` is the default. It gives priority to a questionnaire language declaration of Arabic (`ar`) or Urdu (`ur`). Otherwise, it inspects questionnaire titles, section headings, questions, and response labels: predominantly Arabic-script text selects Arabic, with Urdu-specific characters selecting Urdu; incidental Arabic text in an otherwise non-Arabic questionnaire does not change the interface. Other content selects English. The dashboard interface—not the questionnaire text—is translated. Accepted values are `auto`, `english`, `arabic`, and `urdu`; the short aliases `en`, `ar`, and `ur` are also accepted.
 
 `direction(auto)` is also the default and follows the resolved interface language: Arabic and Urdu use right-to-left, while English uses left-to-right. Use `direction(rtl)` or `direction(ltr)` to override that layout independently. For example, explicitly choosing `uilanguage(english)` keeps the automatic direction left-to-right even when the questionnaire text is Arabic; add `direction(rtl)` if that combination is intentional. An explicit direction does not translate interface text.
 
@@ -228,14 +251,14 @@ surveye sector ownership using "questionnaire.html", ///
     saving("shares_90.html") ci level(90) replace
 ```
 
-For unweighted data, requested intervals use the valid raw count. Frequency weights use the weighted count. Analytic and probability weights use a Kish effective-sample-size approximation. These are descriptive, pointwise intervalsâ€”not design-based survey estimatesâ€”and do not account for strata, clusters, finite-population corrections, or other complex-design features. Importance weights automatically suppress requested intervals because they have no general sampling interpretation.
+For unweighted data, requested intervals use the valid raw count. Frequency weights use the weighted count. Analytic and probability weights use a Kish effective-sample-size approximation. These are descriptive, pointwise intervals—not design-based survey estimates—and do not account for strata, clusters, finite-population corrections, or other complex-design features. Importance weights automatically suppress requested intervals because they have no general sampling interpretation.
 
 Every numeric card has two views:
 
 - **Distribution** shows a compact histogram over the Tukey whisker range, a box/median guide, and counts of values outside the fences; and
 - **Stats** reports valid raw n, missing/excluded n, mean, standard deviation, minimum, maximum, p25, median, p75, Tukey fences, and the outlier count. Weighted dashboards additionally report the total weight carried by outliers and its share of valid weight.
 
-Tukey outliers are values below `p25 - 1.5 Ã— IQR` or above `p75 + 1.5 Ã— IQR`. They are counted and retained in the statistics; only the histogram scale is focused on the whisker range so extreme values do not flatten the main distribution. With weights, the card clearly labels the descriptive weighted statistics.
+Tukey outliers are values below `p25 - 1.5 × IQR` or above `p75 + 1.5 × IQR`. They are counted and retained in the statistics; only the histogram scale is focused on the whisker range so extreme values do not flatten the main distribution. With weights, the card clearly labels the descriptive weighted statistics.
 
 ## Country maps
 
@@ -327,20 +350,20 @@ For a map-enabled dashboard, the harness should allow or deliberately stub the d
 
 ## Files
 
-- `surveye.ado` â€” Stata command and Java bridge
-- `surveye.sthlp` â€” complete Stata help
-- `surveye_2_0_0.jar` â€” release-specific JAR used by Stata
-- `surveye.jar` â€” byte-identical conventional JAR
-- `surveye.pkg` and `stata.toc` â€” Stata package metadata
-- `example.do` â€” runnable starter and recipes
-- `tests/stata_smoke.do` â€” licensed-Stata integration checks
-- `GITHUB_UPLOAD.md`, `PUBLISHING.md`, and `release.sh` â€” GitHub/SSC release instructions and clean archive builder
-- `LICENSE` and `THIRDPARTY-LICENSES.md` â€” licensing
-- `CHANGELOG.md` â€” release history
+- `surveye.ado` — Stata command and Java bridge
+- `surveye.sthlp` — complete Stata help
+- `surveye_2_0_0.jar` — release-specific JAR used by Stata
+- `surveye.jar` — byte-identical conventional JAR
+- `surveye.pkg` and `stata.toc` — Stata package metadata
+- `example.do` — runnable starter and recipes
+- `tests/stata_smoke.do` — licensed-Stata integration checks
+- `GITHUB_UPLOAD.md`, `PUBLISHING.md`, and `release.sh` — GitHub/SSC release instructions and clean archive builder
+- `LICENSE` and `THIRDPARTY-LICENSES.md` — licensing
+- `CHANGELOG.md` — release history
 
 ## Author
 
-Attique Ur Rehman  (co-developed with gpt 5.6 sol)
+Attique Ur Rehman  
 Enterprise Analysis Unit, World Bank
 
 - Repository: <https://github.com/arehman10/SurvEye>

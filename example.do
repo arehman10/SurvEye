@@ -1,284 +1,170 @@
-#!/usr/bin/env sh
-set -eu
+*! SurvEye example 2.0.0 16jul2026
+version 16.0
+clear all
+set more off
 
-ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-ADO="$ROOT/surveye.ado"
-SMOKE="$ROOT/tests/stata_smoke.do"
-README="$ROOT/README.md"
-PKG="$ROOT/surveye.pkg"
-TOC="$ROOT/stata.toc"
+/*
+Run this starter from Stata with three quoted arguments:
 
-INSTALL_URL='https://raw.githubusercontent.com/arehman10/SurvEye/main/'
-if ! grep -Fq "net install surveye, from(\"$INSTALL_URL\") replace" "$README"; then
-  echo "FAIL: README must contain the copy-ready public GitHub install command" >&2
-  exit 1
-fi
-if grep -Fq 'from(...)' "$README"; then
-  echo "FAIL: README still contains a placeholder GitHub installation URL" >&2
-  exit 1
-fi
-if ! grep -Fq '**Author:** Attique Ur Rehman' "$README" ||
-   ! grep -Fq 'https://github.com/fahad-mirza' "$README"; then
-  echo "FAIL: README author or Fahad Mirza acknowledgment is missing" >&2
-  exit 1
-fi
-if ! grep -Fxq 'v 3' "$TOC" || ! grep -Eq '^p surveye[[:space:]]' "$TOC" ||
-   ! grep -Fxq 'v 3' "$PKG" || ! grep -Fq 'd Repository: https://github.com/arehman10/SurvEye' "$PKG"; then
-  echo "FAIL: root Stata package metadata is incomplete" >&2
-  exit 1
-fi
-while IFS= read -r package_file; do
-  if [ ! -f "$ROOT/$package_file" ]; then
-    echo "FAIL: package file must exist at repository root: $package_file" >&2
-    exit 1
-  fi
-done <<EOF
-$(awk '$1 == "f" || $1 == "F" { print $2 }' "$PKG")
-EOF
+    do example.do "questionnaire.html" "survey_data.dta" "dashboard.html"
 
-# marksample expects a caller-local name and creates the temporary variable.
-# Preallocating touse and passing its expansion caused r(111) in real Stata.
-if grep -Eq '^[[:space:]]*tempvar[[:space:]]+touse([[:space:]]|$)' "$ADO"; then
-  echo "FAIL: do not preallocate touse before marksample" >&2
-  exit 1
-fi
+Paths may contain spaces.  The do-file inspects the questionnaire first, then
+builds a dashboard from the data.  It will not silently reuse placeholder paths.
+*/
 
-if ! grep -Eq '^[[:space:]]*marksample[[:space:]]+touse,[[:space:]]*novarlist([[:space:]]|$)' "$ADO"; then
-  echo "FAIL: expected literal 'marksample touse, novarlist'" >&2
-  exit 1
-fi
+args questionnaire datafile dashboard
 
-if ! grep -Eq '^[[:space:]]*file[[:space:]]+write.*[[:space:]]_tab[[:space:]].*[[:space:]]_n([[:space:]]|$)' "$ADO"; then
-  echo "FAIL: config records must use Stata's _tab and _n file directives" >&2
-  exit 1
-fi
+if `"`questionnaire'"' == "" | `"`datafile'"' == "" | `"`dashboard'"' == "" {
+    display as error "Three arguments are required.  Example:"
+    display as error `"  do example.do "questionnaire.html" "survey_data.dta" "dashboard.html""'
+    exit 198
+}
 
-if grep -Eq '^[[:space:]]*file[[:space:]]+write.*[[:space:]]tab[[:space:]]' "$ADO"; then
-  echo "FAIL: bare 'tab' is invalid in Stata file write; use _tab" >&2
-  exit 1
-fi
+confirm file `"`questionnaire'"'
+confirm file `"`datafile'"'
 
-if ! grep -Eq 'local value = subinstr.*macval\(value\).*char\(9\)' "$ADO"; then
-  echo "FAIL: config values must be protected with macval()" >&2
-  exit 1
-fi
+display as text _newline "Step 1 of 2: inspect questionnaire"
+surveye describe using `"`questionnaire'"', detail
 
-if ! grep -Eq '^[[:space:]]*capture[[:space:]]+unab[[:space:]]+weightvar[[:space:]]*:' "$ADO"; then
-  echo "FAIL: weight abbreviations must be resolved before export" >&2
-  exit 1
-fi
+display as text _newline "Step 2 of 2: build dashboard"
+use `"`datafile'"', clear
+surveye using `"`questionnaire'"', ///
+    saving(`"`dashboard'"') replace open
 
-if ! grep -Eq '^[[:space:]]*local[[:space:]]+exportvars.*touse' "$ADO"; then
-  echo "FAIL: the analysis-sample sentinel must be included in the CSV" >&2
-  exit 1
-fi
+return list
 
-if grep -Fq 'confirm number `"' "$ADO"; then
-  echo "FAIL: confirm number requires an unquoted numeric token" >&2
-  exit 1
-fi
+/*
+Additional recipes
+==================
 
-if grep -Eq 'if .*value.*== "" local value "[.]"' "$ADO"; then
-  echo "FAIL: absent status numbers must not be sent to confirm number as '.'" >&2
-  exit 1
-fi
+Select indicators and observations:
 
-if ! grep -Eq 'if inlist\(`"`macval\(value\).*"", "[.]"\)' "$ADO"; then
-  echo "FAIL: status reader must distinguish absent/missing numeric fields" >&2
-  exit 1
-fi
+    surveye legalstatus employment sales if consent == 1 ///
+        using "questionnaire.html", saving("results.html") ///
+        filters(region sector) highlights(employment sales) ///
+        title("Enterprise survey results") replace
 
-if ! grep -Eq 'return scalar .*real\(.*macval\(value\)' "$ADO"; then
-  echo "FAIL: numeric status values must remain macro-safe during conversion" >&2
-  exit 1
-fi
+Choose dashboard density (compact is the default; comfortable is opt-in):
 
-if ! grep -Eq '^[[:space:]]*capture[[:space:]]+noisily[[:space:]]+javacall[[:space:]]+org[.]worldbank[.]surveye[.]StataPlugin[[:space:]]+stata' "$ADO"; then
-  echo "FAIL: javacall must preserve JVM/class-loader diagnostics" >&2
-  exit 1
-fi
+    surveye legalstatus employment sales using "questionnaire.html", ///
+        saving("compact.html") density(compact) replace open
 
-if ! grep -Fq 'local jarname "surveye_2_0_0.jar"' "$ADO" ||
-   ! grep -Fq 'jars(`jarname'"'"')' "$ADO"; then
-  echo "FAIL: javacall must use the release-specific ado-path JAR" >&2
-  exit 1
-fi
+    surveye legalstatus employment sales using "questionnaire.html", ///
+        saving("comfortable.html") density(comfortable) replace open
 
-if ! grep -Fq 'CUSTOMVars(varlist) ADDToSections(string)' "$ADO" ||
-   ! grep -Fq 'BASEMap(string)' "$ADO" ||
-   [ "$(grep -Fc 'CI LEVel(numlist min=1 max=1)' "$ADO" || true)" -ne 2 ]; then
-  echo "FAIL: custom-variable, basemap, or confidence-interval syntax is missing" >&2
-  exit 1
-fi
+Add a logical multiselect question whose Stata columns are services_used__1,
+services_used__2, and so on:
 
-# Stata requires a default value for a real/integer descriptor when the option
-# itself is optional.  A bare LEVel(real) therefore makes the entire syntax
-# declaration fail with r(197), even when the user did not specify level().
-# A one-value numlist keeps omission distinguishable from an explicit level.
-if grep -Eq '\((real|integer)\)' "$ADO"; then
-  echo "FAIL: bare numeric syntax descriptors require review; optional ones need defaults" >&2
-  exit 1
-fi
+    surveye sales employment using "questionnaire.html", ///
+        saving("services.html") questions("services_used") ///
+        filters(region) replace
 
-if grep -Eqi '(^|[[:space:]])NOCI([[:space:]]|$)' "$ADO"; then
-  echo "FAIL: ci must be opt-in; the retired noci option remains in the ado" >&2
-  exit 1
-fi
-if [ "$(grep -Ec '^[[:space:]]*local showciflag = .*ci' "$ADO" || true)" -ne 2 ]; then
-  echo "FAIL: build and demo must default confidence intervals off and enable them only with ci" >&2
-  exit 1
-fi
-if [ "$(grep -Fc 'level() requires ci' "$ADO" || true)" -ne 2 ]; then
-  echo "FAIL: build and demo must reject level() without ci" >&2
-  exit 1
-fi
+Choose questionnaire sections by title and add messages:
 
-for key in customvars addtosections basemap showci cilevel; do
-  if ! grep -Eq "_surveye_cfgline .* ${key}[[:space:]]" "$ADO"; then
-    echo "FAIL: the ado does not pass ${key} to the Java engine" >&2
-    exit 1
-  fi
-done
+    surveye using "questionnaire.html", saving("performance.html") ///
+        sectionmatch("employment|performance") ///
+        keymessages("Coverage::Completed interviews only|Caution::Weighted estimates") ///
+        note("Percentages may not sum to 100 because of rounding.") replace
 
-if ! grep -Eq 'local metadatavars .*customvars.*filters.*highlights.*mapby' "$ADO" ||
-   ! grep -Fq 'foreach metaselected of local selectedvars' "$ADO" ||
-   ! grep -Fq 'capture confirm variable `metaselected'"'"'' "$ADO" ||
-   ! grep -Eq '^[[:space:]]*_surveye_custommeta[[:space:]]' "$ADO"; then
-  echo "FAIL: custom-variable Stata metadata is not written to the engine config" >&2
-  exit 1
-fi
-if ! grep -Fq 'CALCULATED_VARIABLE_LABEL' "$ROOT/src/Util.java" ||
-   [ "$(grep -R -h -F 'Util.displayLabel' "$ROOT/src/HtmlQuestionnaireParser.java" "$ROOT/src/DashboardBuilder.java" | wc -l | tr -d ' ')" -lt 5 ]; then
-  echo "FAIL: calculated-variable placeholder labels are not normalized across dashboard paths" >&2
-  exit 1
-fi
-if ! grep -Eq '_surveye_cfgline .* dataformat[.]' "$ADO"; then
-  echo "FAIL: exact Stata date formats must be passed to the engine" >&2
-  exit 1
-fi
+Include every chart in a very large questionnaire (the default cap is 100):
 
-if awk 'NF && $0 == previous { duplicate=1; exit } { previous=$0 } END { exit duplicate ? 0 : 1 }' "$ADO"; then
-  echo "FAIL: adjacent duplicate source lines found in the ado" >&2
-  exit 1
-fi
+    surveye using "questionnaire.html", saving("complete.html") ///
+        maxpanels(0) replace
 
-if ! grep -Eq '^[[:space:]]*adopath[[:space:]]+\+\+' "$SMOKE" ||
-   ! grep -Eq '^[[:space:]]*quietly[[:space:]]+do.*surveye[.]ado' "$SMOKE"; then
-  echo "FAIL: licensed-Stata smoke test must force the source ado-path and ado" >&2
-  exit 1
-fi
+Create custom sections and override chart types:
 
-# Weights must use Stata's standard command grammar.  A custom weight() option
-# would be redundant, nonidiomatic, and incompatible with prefix parsing.
-main_syntax=$(sed -n '/^[[:space:]]*syntax \[varlist/,/SAVing(string)/p' "$ADO" | tr '\n' ' ')
-if ! printf '%s\n' "$main_syntax" | \
-   grep -Eq 'using/[[:space:]/]*\[aweight fweight iweight pweight\]'; then
-  echo "FAIL: the main syntax must accept native aweights, fweights, iweights, and pweights" >&2
-  exit 1
-fi
-if grep -Eqi '(^|[[:space:]])WEIGHT[[:space:]]*\(' "$ADO"; then
-  echo "FAIL: use native [aw=], [fw=], [iw=], or [pw=] syntax; do not add weight()" >&2
-  exit 1
-fi
-for weight_doc in "$ROOT/README.md" "$ROOT/surveye.sthlp" "$ROOT/example.do" \
-  "$ROOT/examples/README.md" "$SMOKE"; do
-  if grep -Eq '\[(aw|fw|iw|pw)=[^]]+\][[:space:]]+using' "$weight_doc"; then
-    echo "FAIL: stale weight-before-using example in $weight_doc" >&2
-    exit 1
-  fi
-done
-if ! grep -Eq 'surveye[[:space:]]+using.*\[aw=' "$SMOKE"; then
-  echo "FAIL: licensed-Stata smoke test must exercise using filename [aw=weight], order" >&2
-  exit 1
-fi
-if ! grep -Eq 'replace .*touse.*missing\(`weightvar'"'"'\).*weightvar'"'"' == 0' "$ADO"; then
-  echo "FAIL: zero and missing weights must be excluded from the complete analysis sample" >&2
-  exit 1
-fi
-if ! grep -Fq 'confidence intervals are disabled for iweights' "$ADO"; then
-  echo "FAIL: confidence intervals must be disabled for iweights" >&2
-  exit 1
-fi
+    surveye sector size sales employment using "questionnaire.html", ///
+        saving("brief.html") ///
+        customsections("Firm profile: sector size|Performance: sales employment") ///
+        bars(sector) histograms(sales employment) replace
 
-# CI whiskers belong only on ordinary categorical bars. Split binary and
-# completion cards and donut charts must remain CI-free even when ci is set.
-split_source=$(sed -n '/function buildSplit(/,/function buildYesNo(/p' "$ROOT/src/resources/dashboard.js")
-yesno_source=$(sed -n '/function buildYesNo(/,/function buildDonut(/p' "$ROOT/src/resources/dashboard.js")
-donut_source=$(sed -n '/function buildDonut(/,/function buildBar(/p' "$ROOT/src/resources/dashboard.js")
-completion_source=$(sed -n '/function buildCompletion(/,/function build(canvas)/p' "$ROOT/src/resources/dashboard.js")
-bar_source=$(sed -n '/function buildBar(/,/function numericValues(/p' "$ROOT/src/resources/dashboard.js")
-if printf '%s\n' "$split_source$yesno_source$donut_source$completion_source" | grep -Fq 'confidenceInterval('; then
-  echo "FAIL: binary, completion, and donut rendering paths must not compute confidence intervals" >&2
-  exit 1
-fi
-if printf '%s\n' "$split_source" | grep -Fq 'plugins:[barConfidenceIntervals]'; then
-  echo "FAIL: stacked split bars must not register a confidence-interval whisker plugin" >&2
-  exit 1
-fi
-if ! printf '%s\n' "$bar_source" | grep -Fq 'plugins:[barConfidenceIntervals,barValueLabels]'; then
-  echo "FAIL: ordinary categorical bars must retain opt-in confidence-interval whiskers" >&2
-  exit 1
-fi
+Add constructed variables that do not exist in the questionnaire.  Their Stata
+variable labels become the chart titles.  Unplaced variables would appear in
+"Additional indicators":
 
-# Motion is useful only when it is painted in front of the reader. Charts must
-# wait for real viewport exposure (and a visible document), while reduced-motion
-# users continue to receive a zero-duration transition.
-dashboard_js="$ROOT/src/resources/dashboard.js"
-if ! grep -Fq 'Chart.defaults.animation.duration=reducedMotion?0:800' "$dashboard_js" ||
-   ! grep -Fq 'Chart.defaults.animation.easing="easeOutCubic"' "$dashboard_js"; then
-  echo "FAIL: dashboard charts must use the reduced-motion-safe 800 ms easeOutCubic transition" >&2
-  exit 1
-fi
-if grep -Fq 'rootMargin:"180px"' "$dashboard_js" ||
-   ! grep -Fq 'rootMargin:"0px",threshold:[0,.12]' "$dashboard_js"; then
-  echo "FAIL: charts must be constructed at genuine viewport exposure, not 180px offscreen" >&2
-  exit 1
-fi
-if grep -Fq 'section.querySelectorAll("canvas.chart").forEach' "$dashboard_js"; then
-  echo "FAIL: opening a section must not eagerly construct every offscreen chart" >&2
-  exit 1
-fi
-if ! grep -Fq 'document.hidden===true' "$dashboard_js" ||
-   ! grep -Fq 'document.addEventListener("visibilitychange",scheduleChartVisibilityRefresh)' "$dashboard_js"; then
-  echo "FAIL: chart construction must pause while the browser document is hidden" >&2
-  exit 1
-fi
+    label variable qc_score "Enumerator quality score"
+    label variable risk_band "Review priority"
 
-# Main and demo mode both expose the same language/direction interface and pass
-# the normalized values to the Java renderer.
-rtl_syntax=$(grep -Fc 'UILANGuage(string) DIRection(string)' "$ADO" || true)
-if [ "$rtl_syntax" -lt 2 ]; then
-  echo "FAIL: uilanguage() and direction() must be available in build and demo modes" >&2
-  exit 1
-fi
-for key in uilanguage direction; do
-  count=$(grep -Ec "_surveye_cfgline .* ${key}[[:space:]]" "$ADO" || true)
-  if [ "$count" -lt 2 ]; then
-    echo "FAIL: ${key} must be sent to the renderer by build and demo modes" >&2
-    exit 1
-  fi
-done
-if ! grep -Fq '"auto", "english", "arabic", "urdu"' "$ADO" ||
-   ! grep -Fq '"auto", "ltr", "rtl"' "$ADO"; then
-  echo "FAIL: RTL language/direction validation is incomplete" >&2
-  exit 1
-fi
+    surveye using "questionnaire.html", saving("quality.html") ///
+        customvars(qc_score risk_band) ///
+        addtosections("Interview quality: qc_score risk_band") ///
+        histograms(qc_score) bars(risk_band) replace open
 
-if grep -Eq '^program define [[:alnum:]_]+_dashboard([,[:space:]]|$)' "$ADO"; then
-  echo "FAIL: the retired command name remains in the canonical ado" >&2
-  exit 1
-fi
+Move custom variables into an existing section by number and a new section by
+title.  Only variables declared in customvars() may be moved:
 
-if ! grep -Fq 'සිංහල' "$SMOKE"; then
-  echo "FAIL: licensed-Stata smoke test must contain a literal Sinhala value" >&2
-  exit 1
-fi
+    surveye sales using "questionnaire.html", ///
+        saving("focused.html") customvars(qc_score risk_band) ///
+        addtosections("3: qc_score|Quality checks: risk_band") replace
 
-programs=$(awk '/^program define / { n++ } END { print n+0 }' "$ADO")
-ends=$(awk '/^end$/ { n++ } END { print n+0 }' "$ADO")
-if [ "$programs" -ne "$ends" ]; then
-  echo "FAIL: $programs Stata programs but $ends end statements" >&2
-  exit 1
-fi
+Confidence intervals are off by default.  Request 90% Wilson intervals for
+ordinary categorical and multiselect bars with ci level(90).  Binary yes/no,
+answered/missing completion, and donut cards never show CI text or whiskers:
 
-echo "PASS Stata source contracts"
+    surveye sector ownership using "questionnaire.html", ///
+        saving("shares_clean.html") replace
+
+    surveye sector ownership using "questionnaire.html", ///
+        saving("shares_90.html") ci level(90) replace
+
+Numeric cards automatically include Distribution and Stats tabs.  The
+distribution marks Tukey outliers while the table retains them in its summary:
+
+    surveye sales employment using "questionnaire.html", ///
+        saving("numeric_review.html") histograms(sales employment) replace
+
+Apply Stata weights with the standard specification after the using filename
+and before the comma.
+There is no weight() option.  The weight must be one numeric variable; zero or
+missing weights are excluded for all types, negatives are rejected, and
+frequency weights must contain integers:
+
+    surveye sector sales using "questionnaire.html" [aw=wmedian], ///
+        saving("weighted_aw.html") replace
+
+    surveye sector sales using "questionnaire.html" [fw=frequency], ///
+        saving("weighted_fw.html") replace
+
+    surveye sector sales using "questionnaire.html" [iw=importance], ///
+        saving("weighted_iw.html") ///
+        note("Descriptive importance weights.") replace
+
+    surveye sector sales employment using "questionnaire.html" [pw=pop], ///
+        saving("weighted.html") ///
+        filters(region) note("Intervals use a Kish effective-n approximation.") replace
+
+Build an Arabic dashboard.  uilanguage(ar) is short for uilanguage(arabic),
+and direction(auto) selects right-to-left layout:
+
+    surveye using "questionnaire_ar.html", saving("dashboard_ar.html") ///
+        uilanguage(ar) direction(auto) replace open
+
+Build an Urdu dashboard.  uilanguage(auto) normally recognizes a declared Urdu
+questionnaire or Urdu-specific script; explicit settings are also available:
+
+    surveye using "questionnaire_ur.html", saving("dashboard_ur.html") ///
+        uilanguage(ur) direction(rtl) replace open
+
+Add an Admin-2 Leaflet map.  maptype(points) is the default and keeps one marker
+per valid observation; Google Hybrid is the default base map.  The browser can
+switch among Google Hybrid, Satellite, Roads, and OpenStreetMap:
+
+    surveye sector sales using "questionnaire.html", ///
+        saving("mapped.html") ///
+        latitude(gps_latitude) longitude(gps_longitude) country(KEN) ///
+        boundaries("World Bank Official Boundaries - Admin 2.zip") ///
+        maplevel(admin2) maptype(points) basemap(google_hybrid) mapby(sector) ///
+        maptitle("Location of completed interviews") replace open
+
+Use an aggregated display or OpenStreetMap only when deliberately requested:
+
+    surveye sector using "questionnaire.html", saving("clustered.html") ///
+        latitude(gps_latitude) longitude(gps_longitude) country(KEN) ///
+        maptype(cluster) basemap(osm) replace
+
+Preview a translated questionnaire with simulated data:
+
+    surveye demo using "siNhl Global_informal2026.html", ///
+        saving("sinhala_preview.html") n(250) seed(42) ///
+        theme(clean) replace open
+*/
