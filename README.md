@@ -1,0 +1,385 @@
+# SurvEye: interactive Survey Solutions dashboards for Stata
+
+**Author:** Attique Ur Rehman, Enterprise Analysis Unit, World Bank  
+**Development assistance:** Developed with help of GPT-5.6 Sol Ultra.
+
+[Repository](https://github.com/arehman10/SurvEye) Â·
+[Report a problem](https://github.com/arehman10/SurvEye/issues) Â·
+[Stata help](surveye.sthlp) Â·
+[Examples](example.do) Â·
+[Changelog](CHANGELOG.md)
+
+SurvEye is a Stata 16+ tool, distributed as the command `surveye`, that turns a Survey Solutions questionnaire HTML file and the corresponding Stata data into a polished, interactive HTML dashboard. Questionnaire text supplies the labels, sections, response order, and categories; the command adds compact charts, filters, messages, custom data variables, native Stata weights, optional confidence intervals, outlier-aware numeric summaries, a localized right-to-left interface, and an optional Leaflet country map.
+
+The command has deliberately useful defaults:
+
+- the questionnaire determines the initial organization and chart types;
+- `density(compact)` keeps large instruments readable without excessive scrolling;
+- categorical cards are kept uncluttered by default; add `ci` when intervals are useful on eligible bars;
+- numeric cards combine an outlier-aware distribution with a detailed **Stats** tab;
+- `uilanguage(auto)` translates the interface and selects right-to-left layout for Arabic and Urdu questionnaires;
+- GPS maps use individual points over Google Hybrid by defaultâ€”nearby observations are not collapsed unless requested; and
+- the dataset in memory is preserved while a temporary UTF-8 raw-code CSV is passed to the bundled Java engine through Stata's `javacall` interface.
+
+Chart.js, Leaflet, styles, selected data, logos, and boundary geometry are embedded in the output. A dashboard without a map has no runtime network dependency. A map-enabled dashboard needs internet access to fetch the selected Google or OpenStreetMap tiles; it never uploads the survey data.
+
+## Quick installation
+
+Install the current release directly from the public GitHub repository:
+
+```stata
+net install surveye, from("https://raw.githubusercontent.com/arehman10/SurvEye/main/") replace
+discard
+```
+
+After publication on SSC, the shorter equivalent will be:
+
+```stata
+ssc install surveye
+```
+
+Verify the wrapper, release-specific engine, and help file:
+
+```stata
+which surveye
+findfile surveye_2_0_0.jar
+help surveye
+```
+
+The package marks its JARs with uppercase `F` records so `net install` places both files on the ado-path. Stata uses `surveye_2_0_0.jar`; the byte-identical `surveye.jar` remains available for command-line and development use. After replacing an earlier copy, type `discard` or restart Stata.
+
+### Requirements
+
+- Stata 16 or newer with Java enabled (`java query` in Stata);
+- the questionnaire-preview HTML exported by Survey Solutions;
+- the corresponding Stata dataset in memory for a normal build; and
+- internet access only when displaying a Google or OpenStreetMap background map.
+
+The Java engine, Chart.js, Leaflet, fonts, and styles are bundled. Users do not
+need to install a separate Stata dependency, Java library, web server, Node.js,
+or browser extension.
+
+### If GitHub installation returns `r(601)`
+
+Confirm that the repository is public and that these two addresses open as
+plain text in a browser:
+
+- <https://raw.githubusercontent.com/arehman10/SurvEye/main/stata.toc>
+- <https://raw.githubusercontent.com/arehman10/SurvEye/main/surveye.pkg>
+
+Then retry the copy-ready command above. The package files must be at the
+repository root, not inside a ZIP file or an enclosing `surveye-2.0.0` folder.
+If an earlier SurvEye JAR was already used in the current Stata session, fully
+restart Stata after reinstalling; the JVM can retain a loaded JAR until Stata
+exits. Regenerate previously created dashboards to receive the new interface.
+
+Version 2.0.0 introduces the SurvEye name and the public command/SSC package
+`surveye`. Scripts written for the former `suso_dashboard` command or the
+interim `surveydash` preview must replace that name with `surveye`; no legacy
+compatibility command is installed.
+
+## Two-minute start
+
+Inspect a questionnaire without loading data:
+
+```stata
+surveye describe using "questionnaire.html", detail
+return list
+```
+
+Build a dashboard from the dataset in memory:
+
+```stata
+use "survey_data.dta", clear
+surveye using "questionnaire.html", ///
+    saving("dashboard.html") replace open
+```
+
+Preview a questionnaire with clearly marked simulated data:
+
+```stata
+surveye demo using "questionnaire.html", ///
+    saving("preview.html") n(300) seed(42) replace open
+```
+
+## Main syntax
+
+```stata
+surveye [varlist] [if] [in] using questionnaire.html [aw=wmedian], ///
+    saving(filename) [options]
+
+* Explicit build form, useful when the first variable is named build, describe, or demo
+surveye build [varlist] [if] [in] using questionnaire.html [pw=pop], ///
+    saving(filename) [options]
+
+* Repeat a variable named build after the subcommand
+surveye build build sales using questionnaire.html, saving(filename)
+```
+
+The weight specification is optional and must name one variable. Use Stata's native syntaxâ€”`[aw=wmedian]`, `[fw=frequency]`, `[iw=importance]`, or `[pw=pop]`â€”after the `using` filename and before the comma. There is deliberately no `weight()` option.
+
+| Goal | Options |
+|---|---|
+| Choose questionnaire content | `questions()`, `sections()`, `sectionmatch()`, `exclude()`, `maxpanels()`, `showempty`, `strict` |
+| Add data-only variables | `customvars()`, `addtosections()` |
+| Add controls | `filters()`, `highlights()`, `maxcategories()` |
+| Add narrative | `keymessages()`, `customsections()`, `note()`, `source()`, `disclaimer()` |
+| Control figures | `bars()`, `donuts()`, `histograms()`, `missingcodes()`, `ci`, `level()` |
+| Add a map | `latitude()`, `longitude()`, `country()`, `boundaries()`, `maplevel()`, `maptype()`, `basemap()`, `mapby()`, `maptitle()` |
+| Set language and appearance | `uilanguage()`, `direction()`, `title()`, `subtitle()`, `logo()`, `theme()`, `density()` |
+| Manage output | `saving()`, `replace`, `open`, `diagnostics()` |
+
+Run `help surveye` in Stata for complete definitions and copy-ready examples.
+
+## Selecting questionnaire variables
+
+With neither a `varlist` nor `questions()`, the engine considers every chartable questionnaire item present in the data. A `varlist` selects ordinary Stata variables. `questions()` selects logical Survey Solutions names and is especially useful for a multiselect stored as expansion variables such as `services_used__1` and `services_used__2`. The selectors can be combined and are deduplicated.
+
+```stata
+surveye sales employment using "questionnaire.html", ///
+    questions("services_used") saving("results.html") replace
+```
+
+Variables used only in `filters()`, `highlights()`, map options, or as the weight variable are automatically included in the temporary export but are not charted. The dashboard is capped at 100 panels by default. Use focused selectors, raise `maxpanels()`, or specify `maxpanels(0)` to include all eligible panels.
+
+Filter choices are drawn only from observed valid values. Numeric filters
+compare normalized numeric values, multiselect filters use any-selected
+semantics, and privacy-reduced text or media questions expose localized
+Answered/Missing choices. Codes listed in `missingcodes()` are excluded from
+the controls. Questionnaire-declared negative special response codes are also
+excluded from numeric filters, so values such as Survey Solutions' `-4` and
+`-9` are not offered as measurements. A requested categorical filter with no valid
+observed choices returns an actionable error instead of creating a zero-result
+control.
+
+Automatic chart choices emphasize compact comparison: horizontal percentage bars for categorical and multiselect items, split bars for binary and answered/missing items, histograms for numeric variables, and time distributions for dates. Donuts are opt-in through `donuts()`. `maxcategories()` combines less frequent levels into **Other** without changing the valid-response denominator.
+
+The chart palette uses consistent roles rather than arbitrary rainbow coloring: ordinary comparisons are blue, numeric distributions purple, date trends navy, and median/outlier guides coral. Generic Yes/No cards use blue and a neutral stone so color does not imply that every Yes is good or every No is bad; answered/missing cards use green and gray. Special values remain visibly muted, and category/map colors are assigned from the full response order so filtering does not make a category change color. Cards are packed into balanced three-, two-, or one-card rows, with equal edges inside each row and no extra page height.
+
+## Add variables that are not in the questionnaire
+
+Use `customvars()` for constructed indicators, quality-control fields, administrative classifications, or any other variables in memory that are not questionnaire items. This option is additive: questionnaire charts are selected normally, then the declared variables are added. Their Stata variable labels become chart titles by default; if a variable has no label, its name is used. Survey Solutions' generic labels such as `Calculated variable of type String` are also replaced by the actual variable name, so calculated fields remain distinguishable.
+
+The wrapper also sends enough Stata metadata to choose a sensible display:
+
+- numeric storage becomes a numeric distribution;
+- `%tc`, `%td`, `%tw`, `%tm`, `%tq`, `%th`, and `%ty` formats become date distributions;
+- strings become categorical charts; and
+- numeric variables with Stata value labels become categorical charts, with observed label text preserved when the number of levels is within `maxcategories()`.
+
+Business-calendar `%tb` values are not currently interpreted as dates because
+their calendar rules are dataset-specific. Convert or export them to one of the
+supported date representations before including them in `customvars()`.
+
+Unplaced custom variables appear under **Additional indicators**. Use `addtosections()` to move them into an existing selected questionnaire section by exact title (case is ignored) or number, or to create a clearly named new section. A numeric target first matches the questionnaire's original section number; if that number is not selected, it matches the visible dashboard position (1, 2, 3, ...). Separate assignments with `|`:
+
+```stata
+label variable qc_score "Enumerator quality score"
+label variable risk_band "Review priority"
+
+surveye using "questionnaire.html", ///
+    saving("quality_dashboard.html") ///
+    customvars(qc_score risk_band) ///
+    addtosections("Interview quality: qc_score risk_band") ///
+    histograms(qc_score) bars(risk_band) replace open
+```
+
+```stata
+* Add one variable to section 3 and create a new Quality checks section
+surveye sales using "questionnaire.html", ///
+    saving("focused.html") customvars(qc_score risk_band) ///
+    addtosections("3: qc_score|Quality checks: risk_band") replace
+```
+
+Only variables declared in `customvars()` may be named in `addtosections()`. An unmatched numeric target is an error; an unmatched text target creates a new section. `addtosections()` cannot be combined with `customsections()`, which reorganizes the whole selected dashboard.
+
+## Arabic, Urdu, and right-to-left dashboards
+
+`uilanguage(auto)` is the default. It gives priority to a questionnaire language declaration of Arabic (`ar`) or Urdu (`ur`). Otherwise, it inspects questionnaire titles, section headings, questions, and response labels: predominantly Arabic-script text selects Arabic, with Urdu-specific characters selecting Urdu; incidental Arabic text in an otherwise non-Arabic questionnaire does not change the interface. Other content selects English. The dashboard interfaceâ€”not the questionnaire textâ€”is translated. Accepted values are `auto`, `english`, `arabic`, and `urdu`; the short aliases `en`, `ar`, and `ur` are also accepted.
+
+`direction(auto)` is also the default and follows the resolved interface language: Arabic and Urdu use right-to-left, while English uses left-to-right. Use `direction(rtl)` or `direction(ltr)` to override that layout independently. For example, explicitly choosing `uilanguage(english)` keeps the automatic direction left-to-right even when the questionnaire text is Arabic; add `direction(rtl)` if that combination is intentional. An explicit direction does not translate interface text.
+
+```stata
+* Arabic interface and right-to-left layout
+surveye using "questionnaire_ar.html", saving("dashboard_ar.html") ///
+    uilanguage(ar) direction(auto) replace open
+
+* Urdu is normally detected automatically; this makes the choice explicit
+surveye using "questionnaire_ur.html", saving("dashboard_ur.html") ///
+    uilanguage(urdu) direction(rtl) replace open
+```
+
+Arabic and Urdu interface labels, controls, summaries, map text, chart descriptions, and empty-state messages are embedded in the HTML. Variable names, supplied titles, notes, sources, key messages, and questionnaire wording remain exactly as provided. Technical parser warnings, diagnostics, and Stata console messages remain in English. The generated document sets the matching `lang` and `dir` attributes so browsers and assistive technologies use the correct reading order. RTL mode also mirrors horizontal chart scales, category axes, direct labels, navigation, tables, and Leaflet controls rather than merely aligning the surrounding text.
+
+## Stata weights
+
+Supply one numeric weight variable with the normal Stata weight specification; do not put a weight inside the option list:
+
+```stata
+* Analytic weight
+surveye sector sales using "questionnaire.html" [aw=wmedian], ///
+    saving("weighted_aw.html") replace
+
+* Frequency weight
+surveye sector sales using "questionnaire.html" [fw=frequency], ///
+    saving("weighted_fw.html") replace
+
+* Importance weight (descriptive)
+surveye sector sales using "questionnaire.html" [iw=importance], ///
+    saving("weighted_iw.html") replace
+
+* Probability weight
+surveye sector sales using "questionnaire.html" [pw=pop], ///
+    saving("weighted_pw.html") filters(region) replace
+```
+
+The weight must resolve to one numeric variable. Negative values are rejected, and frequency weights must contain integers. Observations with zero or missing weights are excluded for all four weight types, so every retained weight is positive. The command stops if no observations remain after `if`, `in`, and weight restrictions. The weight variable is exported automatically for calculation but is not charted unless selected.
+
+Weights affect shares, histograms, means, medians, quantiles, standard deviations, and the numeric Stats table. They do not replace `svyset`, and `surveye` does not estimate design-based standard errors. When `ci` is supplied, frequency-weighted Wilson intervals use the weighted count; analytic- and probability-weighted intervals use a clearly labelled Kish effective-sample-size approximation. Importance weights have no general sampling interpretation, so a requested interval is suppressed automatically and the dashboard explains why. The remaining weighted intervals do not account for strata, primary sampling units, finite-population corrections, or other survey-design features.
+
+## Confidence intervals and numeric outliers
+
+Confidence intervals are off by default. This keeps compact dashboards easy to scan and avoids placing inferential marks on binary composition bars, where they can be mistaken for a range covering part of the stacked bar.
+
+Add `ci` to show pointwise Wilson intervals on ordinary categorical and multiselect horizontal bars. `level(#)` sets their confidence level (greater than 50 and less than 100) and requires `ci`; the default with `ci` is 95. Binary yes/no cards, answered/missing completion cards, and donuts never show confidence-interval text or whiskers, even when `ci` is requested.
+
+```stata
+surveye sector ownership using "questionnaire.html", ///
+    saving("shares_clean.html") replace
+
+surveye sector ownership using "questionnaire.html", ///
+    saving("shares_90.html") ci level(90) replace
+```
+
+For unweighted data, requested intervals use the valid raw count. Frequency weights use the weighted count. Analytic and probability weights use a Kish effective-sample-size approximation. These are descriptive, pointwise intervalsâ€”not design-based survey estimatesâ€”and do not account for strata, clusters, finite-population corrections, or other complex-design features. Importance weights automatically suppress requested intervals because they have no general sampling interpretation.
+
+Every numeric card has two views:
+
+- **Distribution** shows a compact histogram over the Tukey whisker range, a box/median guide, and counts of values outside the fences; and
+- **Stats** reports valid raw n, missing/excluded n, mean, standard deviation, minimum, maximum, p25, median, p75, Tukey fences, and the outlier count. Weighted dashboards additionally report the total weight carried by outliers and its share of valid weight.
+
+Tukey outliers are values below `p25 - 1.5 Ã— IQR` or above `p75 + 1.5 Ã— IQR`. They are counted and retained in the statistics; only the histogram scale is focused on the whisker range so extreme values do not flatten the main distribution. With weights, the card clearly labels the descriptive weighted statistics.
+
+## Country maps
+
+Supply numeric latitude and longitude variables and a country name, ISO-2 code, or ISO-3 code:
+
+```stata
+surveye sector sales using "questionnaire.html", ///
+    saving("mapped.html") ///
+    latitude(gps_latitude) longitude(gps_longitude) country(KEN) ///
+    boundaries("World Bank Official Boundaries - Admin 2.zip") ///
+    maplevel(admin2) maptype(points) basemap(google_hybrid) ///
+    mapby(sector) maptitle("Location of completed interviews") ///
+    replace open
+```
+
+The map uses embedded Leaflet 1.9.4 and the same base-layer choices and option names as `esqc_gps`:
+
+| `basemap()` | Leaflet base layer |
+|---|---|
+| `google_hybrid` | Google satellite imagery with labels; default |
+| `google_sat` | Google satellite imagery |
+| `google_road` | Google road map |
+| `osm` | OpenStreetMap |
+
+The layer control in the map can switch among all four. Base tiles are fetched when the map opens, so map-enabled dashboards require internet access and the tile provider must be reachable. Leaflet, survey points, and boundary geometry remain embedded.
+
+The `esqc_gps`-compatible Google choices use keyless compatibility tile endpoints; they are not an authenticated Google Maps Platform integration and their availability or access policy can change. Before distributing a dashboard, confirm that the selected provider is approved for the intended use and comply with its current terms and attribution rules. Use `basemap(osm)` when OpenStreetMap is the approved provider. The GPS points and boundary remain usable if a background provider is unavailable.
+
+`maptype(points)` is the default. Every valid observation is rendered as its own circle marker, without clustering. Each point is focusable by keyboard and opens its localized popup with Enter or Space. If several rows share exactly the same coordinates, their markers are offset slightly on screen so each can be selected; the popup retains the original coordinate and notes the separation. `maptype(cluster)` and `maptype(heat)` are explicit, aggregated alternatives for very dense or disclosure-sensitive maps.
+
+`mapby()` accepts up to ten observed valid groups. A grouping value named in
+`missingcodes()` is left out of the group cap and legend, while its GPS point
+remains visible in the default point color.
+
+If `boundaries()` is omitted, the engine uses a bundled 1:50m country outline and `maplevel(country)`. A boundary ZIP should contain a polygon `.shp`, matching `.dbf`, and preferably a `.prj`; WGS84 longitude/latitude is required. Supplying a compatible ZIP defaults to `maplevel(admin2)`. Country and Admin-2 lines are drawn as WGS84 Leaflet rings so they align with the tiles and GPS points; antimeridian geometries are normalized to one longitude branch. Invalid coordinate pairs are omitted and reported in `r(map_missing)`; valid points outside the selected boundary are reported in `r(map_outside)`.
+
+In compact dashboards, the map starts as a concise summary and opens with **Show map**. Comfortable dashboards open it initially.
+
+### Map privacy
+
+A map-enabled HTML file embeds valid latitude and longitude so Leaflet can draw and filter the map: six decimal places for the default `points`, four for `cluster`, and three for `heat`. Even reduced precision can identify respondents or establishments. Protect the HTML like the source data, conduct disclosure review, and do not publish row-level maps without authorization. `cluster` and `heat` reduce coordinate precision and aggregate the visual display, but they are not a substitute for a formal disclosure-control method.
+
+## Data rules and privacy
+
+One invocation represents one rectangular unit of observation. Survey Solutions roster exports are separate files; create one dashboard per roster level, or merge a carefully defined roster summary into the parent data first. Blind joins can change denominators.
+
+The HTML embeds the selected analysis-level values needed by filters and figures. Text, picture, audio, linked text-list, and questionnaire-GPS completion items are reduced to answered/not-answered flags instead of embedding their original contents. Raw response codes are sent to the engine so questionnaire categories remain authoritative; `customvars()` is the exception where Stata variable labels and, when applicable, observed value labels are intentionally used. Questionnaire-defined special responses remain visible and muted in categorical figures. Negative special codes are automatically excluded from numeric histograms, statistics, outlier detection, and numeric filters because they are not measurements; nonnegative substantive shortcuts remain valid. This removes Survey Solutions responses such as `-4` and `-9` without discarding legitimate negative-valued questions. Use `missingcodes()` for additional sentinels not declared by the questionnaire, for example `missingcodes(-999 -998 999)`.
+
+The command does not upload data. Nevertheless, the finished file is an interactive data product, not a static image, and should be stored and shared under the same controls as its inputs.
+
+## Returned results
+
+The command is `rclass`. Important results include `r(N)`, `r(k_charted)`, `r(k_sections)`, `r(k_filters)`, `r(chartvars)`, `r(skippedvars)`, `r(warnings)`, `r(weighted)`, `r(has_map)`, `r(map_N)`, `r(map_missing)`, `r(map_outside)`, `r(output)`, `r(questionnaire)`, and `r(engine_version)`.
+
+```stata
+return list
+```
+
+## Development and release checks
+
+The portable tests require a JDK and, for the complete parser regression, the directory containing the supplied questionnaire HTML files:
+
+```bash
+./build.sh
+./tests/check_stata_source.sh
+./tests/check_package.sh
+node tests/test_statistics.js
+./tests/run_engine_smoke.sh tests
+./tests/run_parser_tests.sh /path/to/questionnaire-html-files
+./tests/run_engine_smoke.sh /path/to/questionnaire-html-files
+./release.sh /path/to/release-directory
+```
+
+A licensed Stata smoke test remains required before SSC submission:
+
+```stata
+do "tests/stata_smoke.do" "C:/path/to/surveye"
+```
+
+Responsive browser QA uses Node.js 18+ and the pinned dependencies in `tests/package.json`:
+
+```bash
+cd tests
+npm install
+npm run qa -- ../dashboard.html --out qa-output/dashboard
+```
+
+For a map-enabled dashboard, the harness should allow or deliberately stub the documented Google/OpenStreetMap tile requests while continuing to reject unexpected external traffic. Verify point count, coincident-point visibility, base-layer switching, filtering, numeric tabs, outlier annotations, default CI absence, `ci level(#)` opt-in behavior on eligible bars, responsive layout, keyboard operation, and horizontal overflow.
+
+## Files
+
+- `surveye.ado` â€” Stata command and Java bridge
+- `surveye.sthlp` â€” complete Stata help
+- `surveye_2_0_0.jar` â€” release-specific JAR used by Stata
+- `surveye.jar` â€” byte-identical conventional JAR
+- `surveye.pkg` and `stata.toc` â€” Stata package metadata
+- `example.do` â€” runnable starter and recipes
+- `tests/stata_smoke.do` â€” licensed-Stata integration checks
+- `GITHUB_UPLOAD.md`, `PUBLISHING.md`, and `release.sh` â€” GitHub/SSC release instructions and clean archive builder
+- `LICENSE` and `THIRDPARTY-LICENSES.md` â€” licensing
+- `CHANGELOG.md` â€” release history
+
+## Author
+
+Attique Ur Rehman  
+Enterprise Analysis Unit, World Bank
+
+- Repository: <https://github.com/arehman10/SurvEye>
+- Support and bug reports: <https://github.com/arehman10/SurvEye/issues>
+
+## Acknowledgments
+
+Thanks to [Fahad Mirza](https://github.com/fahad-mirza) (World Bank / CERP) for his
+insights and guidance, and for his self-contained Stata tooling
+([sparkta](https://github.com/fahad-mirza/sparkta_stata),
+[wordcloud2](https://github.com/fahad-mirza/wordcloud2_stata)), which helped shape the
+design of this package.
+
+## License
+
+Released under the [MIT License](LICENSE). This is an independent utility; the
+views and dashboards produced with it do not necessarily represent the views
+of the World Bank, its Board of Executive Directors, or the governments they
+represent. Survey Solutions is a World Bank data-collection platform.
