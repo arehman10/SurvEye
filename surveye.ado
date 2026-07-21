@@ -1,4 +1,4 @@
-*! version 2.0.0 16jul2026
+*! version 2.0.0 20jul2026
 
 program define surveye, rclass
     version 16.0
@@ -913,7 +913,7 @@ program define _surveye_custommeta
                     local valueindex = 0
                     foreach onelevel of local customlevels {
                         local ++valueindex
-                        local labeltext : label (`valuelabel') `onelevel'
+                        // valuelabel is a label-definition name; parentheses would mean a variable.\n                        local labeltext : label `valuelabel' `onelevel'
                         if strtrim(`"`macval(labeltext)'"') == "" local labeltext `"`onelevel'"'
                         _surveye_cfgline `handle' datavalue.`variable'.`valueindex' ///
                             `"`onelevel'::`macval(labeltext)'"'
