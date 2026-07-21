@@ -1,4 +1,4 @@
-*! SurvEye example 2.1.1 20jul2026
+*! SurvEye example 2.1.2 20jul2026
 version 16.0
 clear all
 set more off
@@ -124,8 +124,9 @@ CI whiskers:
         comparetitle("Digital access by city") replace
 
 Small nonnegative integer distributions are recognized as discrete counts.
-Force exact observed-value bars or a continuous histogram when subject-matter
-meaning should override that automatic choice:
+Request a smart integer display (exact bars when readable, integer-aligned bins
+for wider ranges) or a continuous histogram when subject-matter meaning should
+override that automatic choice:
 
     surveye employees visits revenue using "questionnaire.html", ///
         saving("numeric_types.html") ///

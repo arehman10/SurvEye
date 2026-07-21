@@ -1,0 +1,67 @@
+name: build
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  java-and-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Build Java 8-compatible engine
+        run: ./build.sh
+
+      - name: Static checks
+        run: |
+          bash -n build.sh
+          bash -n release.sh
+          sh -n tests/check_stata_source.sh
+          sh -n tests/run_parser_tests.sh
+          sh -n tests/run_engine_smoke.sh
+          tests/check_stata_source.sh
+          node --check src/resources/dashboard.js
+          node --check tests/visual_qa.js
+          node tests/test_statistics.js
+          java -jar surveye.jar --version
+          cmp surveye.jar surveye_2_1_2.jar
+          unzip -t surveye.jar
+          unzip -t surveye_2_1_2.jar
+          javap -classpath surveye_2_1_2.jar -public org.worldbank.surveye.StataPlugin
+          tests/check_package.sh
+
+      - name: Stata-Java status contract
+        run: tests/run_engine_smoke.sh tests
+
+      - name: Portable dashboard smoke test
+        run: |
+          java -jar surveye.jar \
+            tests/fixed_multi_questionnaire.html tests/fixed_multi.csv \
+            /tmp/fixed_multi.html --variables services_used
+          grep -Fq 'var DATA=[{"services_used":["1"]},{"services_used":["2"]},{"services_used":[]},{"services_used":null}]' /tmp/fixed_multi.html
+
+      - name: Verify SSC manifest files
+        run: |
+          awk '$1=="f" || $1=="F" { print $2 }' surveye.pkg |
+            while read -r file; do test -f "$file"; done
+
+      - name: Verify release archives
+        run: |
+          ./release.sh /tmp/surveye-release
+          unzip -t /tmp/surveye-release/surveye-2.1.2.zip
+          unzip -t /tmp/surveye-release/surveye-2.1.2-github.zip
+          unzip -t /tmp/surveye-release/surveye-2.1.2-ssc.zip
+          for file in README.md stata.toc surveye.pkg surveye.ado surveye.sthlp surveye.jar surveye_2_1_2.jar; do
+            unzip -Z1 /tmp/surveye-release/surveye-2.1.2-github.zip | grep -Fxq "$file"
+          done
+          test "$(unzip -Z1 /tmp/surveye-release/surveye-2.1.2-ssc.zip | head -n 1 | cut -d/ -f1)" != "surveye-2.1.2-ssc"
+          if unzip -Z1 /tmp/surveye-release/surveye-2.1.2-ssc.zip | grep -Eiq '(^|/)(suso_dashboard|surveydash)'; then exit 1; fi

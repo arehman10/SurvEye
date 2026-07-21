@@ -1,4 +1,4 @@
-*! version 2.1.1 20jul2026
+*! version 2.1.2 20jul2026
 
 program define surveye, rclass
     version 16.0
@@ -754,7 +754,7 @@ program define _surveye_main, rclass
     if missing(`outN') return scalar N = `sample_N'
     return scalar sample_N = `sample_N'
     return scalar weighted = `weighted'
-    return local package_version "2.1.1"
+    return local package_version "2.1.2"
 end
 
 
@@ -852,7 +852,7 @@ program define _surveye_describe, rclass
     _surveye_read_status using `"`statusfile'"'
     return add
     if `"`macval(outquestionnaire)'"' == "" return local questionnaire `"`macval(using)'"'
-    return local package_version "2.1.1"
+    return local package_version "2.1.2"
 end
 
 
@@ -1037,7 +1037,7 @@ program define _surveye_demo, rclass
         return local filename `"`macval(saving)'"'
     }
     if `"`macval(outquestionnaire)'"' == "" return local questionnaire `"`macval(using)'"'
-    return local package_version "2.1.1"
+    return local package_version "2.1.2"
 end
 
 
@@ -1108,7 +1108,7 @@ program define _surveye_invoke, rclass
     version 16.0
     args configfile statusfile diagnostics
 
-    local jarname "surveye_2_1_1.jar"
+    local jarname "surveye_2_1_2.jar"
     capture findfile `jarname'
     if _rc {
         display as error "`jarname' is not installed on the Stata ado-path"

@@ -1,6 +1,6 @@
-# QA report — SurvEye 2.1.1
+# QA report — SurvEye 2.1.2
 
-Release-candidate review date: 2026-07-16
+Release-candidate review date: 2026-07-20
 
 ## Outcome
 
@@ -132,12 +132,14 @@ bounded, scrollable expanded controls. Both expanded and collapsed states had
 zero horizontal overflow; all charts and all 300/120 point markers remained
 rendered without browser, page, or unexpected-network errors.
 
-Eight final 2.1.1 executable suites passed after the palette, symmetry, and
-controls-disclosure refresh: 25 of 25 viewport runs and 25 saved screenshots.
+Nine final 2.1.2 executable suites passed after the palette, symmetry,
+controls-disclosure, and numeric-axis refresh: 29 of 29 viewport runs and 29
+saved screenshots.
 Seven baseline suites retain the original three-viewport matrix; the regenerated
-release sample also passes the short-desktop regression, for four viewports. Reports
-are under `tests/design-output/palette-qa-*` for the release sample, explicit-CI,
-Urdu, Arabic-map, weighted, multiselect, dark-RTL, and dark-donut dashboards.
+release sample and smart-numeric dashboard also pass the short-desktop regression,
+for four viewports each. Reports are under `tests/design-output/palette-qa-*` for
+the established suites and `build/qa-numeric-results-final` for the numeric-axis
+regression.
 
 | Final suite | Exact browser result |
 |---|---|
@@ -149,8 +151,9 @@ Urdu, Arabic-map, weighted, multiselect, dark-RTL, and dark-donut dashboards.
 | Explicit CI | Passed 3/3. Eligible ordinary bars use the opt-in Wilson whiskers; binary and numeric cards remain free of ambiguous CI overlays. The long custom-variable card occupies a deliberate full-width singleton row. |
 | Dark donut | Passed 3/3. The eight-color composition palette, card-colored segment separators, neutral binary bar, purple distribution, and coral median/outlier guide remain distinct on the dark card background. |
 | Release sample | Passed 4/4, including 1536×640. All 4/4 charts rendered in every viewport. The collapsed control toolbar measured 54–56 pixels; expanded state, selection preservation, collapsed Reset all, focus return, and zero-overflow checks passed. The compact Google Hybrid point map rendered 300/300 individual accessible markers and refit/restored 300 to 164 to 300 after filtering. |
+| Smart numeric distributions | Passed 4/4, including 1536×640. Age and years-in-city cards used linear numeric axes with regular round-number ticks, bounded integer-aligned bars, visible median guides, and explicit low/high Tukey-tail counts. An age value of 506 remained in Stats without stretching the plotted axis; `maxcategories(12)` remained unchanged. |
 
-Across the eight final reports, every search, filter/reset, details, chart,
+Across the nine final reports, every search, filter/reset, details, chart,
 responsive-density, accessibility-summary, Stats, map, and overflow assertion
 passed. There were zero browser console errors, page errors, unexpected local
 requests, or unexpected external requests. The three map suites intercepted 173
@@ -172,7 +175,7 @@ pattern and Leaflet behavior but intentionally intercepts tile responses.
 
 ## Package checks
 
-- Engine version: 2.1.1
+- Engine version: 2.1.2
 - Generic and release-specific JARs are verified byte-for-byte identical. A fixed SHA is not published because ZIP entry timestamps change on a clean rebuild.
 - Every Java class in the current release build has Java 8 major version 52
 - Runtime dependencies: `java.base` only
@@ -192,7 +195,13 @@ pattern and Leaflet behavior but intentionally intercepts tile responses.
   denominator contract, plus special-versus-explicit-missing behavior for
   categorical, numeric, and date values; it also covers type-aware filters,
   reserved category keys, mirrored RTL scales/direct labels, weighted outlier
-  share, and the accessible Leaflet point-marker source contract
+  share, the accessible Leaflet point-marker source contract, smart integer
+  bins, numeric linear axes, regular tick intervals, Tukey-tail clipping, and
+  visible-plus-tail mass conservation
+- Numeric-distribution contract: `tests/NumericDistributionContractTest.java`
+  verifies that 81 distinct integer ages plus an extreme positive tail build
+  successfully with `maxcategories(12)` and retain nonnegative/special-code
+  metadata
 - Java weight contract: `tests/WeightContractTest.java` verifies all four
   weight types, zero/missing exclusion, paired `weight`/`weighttype`, negative,
   fractional-fweight, all-zero, and nonnumeric failures, and iweight CI
@@ -214,7 +223,7 @@ pattern and Leaflet behavior but intentionally intercepts tile responses.
   filename, the SSC ZIP is flat and matches the package manifest exactly, and
   SHA-256 checksums are printed after validation
 - Shell and JavaScript syntax checks: passed
-- GitHub Actions builds and validates the `2.1.1` release-specific JAR, runs
+- GitHub Actions builds and validates the `2.1.2` release-specific JAR, runs
   the package-integrity checks, and exercises the clean flat-SSC release builder
 
 ## Required Stata release smoke test
@@ -225,7 +234,7 @@ version you intend to support:
 ```stata
 net install surveye, from("LOCAL_OR_RELEASE_URL") replace
 which surveye
-findfile surveye_2_1_1.jar
+findfile surveye_2_1_2.jar
 help surveye
 
 surveye describe using "English TRG_2025.html", detail
@@ -257,7 +266,7 @@ surveye using "questionnaire_ur.html", saving("smoke_ur.html") ///
 Run the bundled deterministic wrapper regression after installation:
 
 ```stata
-do "tests/stata_smoke.do" "C:/path/to/extracted/surveye-2.1.1"
+do "tests/stata_smoke.do" "C:/path/to/extracted/surveye-2.1.2"
 ```
 
 Also test:
@@ -278,7 +287,7 @@ Also test:
 7. Arabic and Urdu `uilanguage(auto)` detection, explicit `ar`/`ur` aliases,
    `direction(auto|ltr|rtl)`, RTL keyboard navigation, and mobile overflow; and
 8. installation from an SSC-like index, confirming both uppercase `F` JARs are
-   installed and `findfile surveye_2_1_1.jar` resolves the release-specific binary.
+   installed and `findfile surveye_2_1_2.jar` resolves the release-specific binary.
 
 ## Publication notes
 

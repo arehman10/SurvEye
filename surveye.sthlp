@@ -1,5 +1,5 @@
 {smcl}
-{* *! version 2.1.1 20jul2026}{...}
+{* *! version 2.1.2 20jul2026}{...}
 {vieweralsosee "return" "help return"}{...}
 {vieweralsosee "weight" "help weight"}{...}
 {vieweralsosee "export delimited" "help export delimited"}{...}
@@ -322,19 +322,21 @@ Small integer-valued numeric variables are recognized automatically as
 discrete counts when their question text and observed support strongly look
 like counts, such as number of workers or household members.  Detection is
 conservative and uses the actual analysis sample after {ifin}, weights, and
-missing-code exclusions.  The distribution displays one bar for every integer
-in the range, including zero-frequency gaps, instead of fractional histogram
-bins.  Negative questionnaire response codes are excluded, Tukey outlier
-values are highlighted, and the numeric Stats tab remains available.
+missing-code exclusions.  Readable ranges display one bar for every integer,
+including zero-frequency gaps.  Wider ranges automatically use equal-width,
+integer-aligned bins.  A numeric x axis supplies regular round-number ticks.
+Negative questionnaire response codes are excluded.  Tukey outliers remain in
+the summary statistics; extreme tails that would flatten the main distribution
+are counted at the plot edges instead.  The numeric Stats tab remains available.
 
 {phang}
 {opt discrete(varlist)} forces numeric counts, bounded scores, or numeric
-category codes to use an exact-value discrete distribution.  Forced variables
-may have no more than {opt maxcategories()} valid values.  {opt continuous(varlist)}
-forces numeric variables to use a histogram and numeric Stats table, even when
-all observed values are integers or a Stata value label is attached.  Both
-options require numeric, non-date variables that are also selected for the
-dashboard.  Examples:
+category codes to use this smart integer distribution.  It preserves exact
+values when readable and bins only a genuinely wide integer range.
+{opt continuous(varlist)} forces numeric variables to use a continuous
+histogram and numeric Stats table, even when all observed values are integers
+or a Stata value label is attached.  Both options require numeric, non-date
+variables that are also selected for the dashboard.  Examples:
 
 {phang2}{cmd:discrete(employees visits) continuous(revenue productivity_score)}
 
@@ -351,6 +353,7 @@ combined redundantly with {opt continuous()}; it conflicts with
 figures.  The default is 12; allowed values are 2 through 200.  Compact mode
 shows at most seven displayed levels.  Less frequent levels are combined as
 {it:Other}, while percentages continue to use the full valid denominator.
+This option does not limit {opt discrete()} or continuous numeric distributions.
 
 {phang}
 {opt missingcodes(numlist)} explicitly excludes extra numeric nonresponse or
@@ -647,7 +650,7 @@ does not upload data.
 
 {phang2}{cmd:. surveye srib8a srib8b srib8c using "questionnaire.html", saving("digital_by_city.html") compare(srib8a srib8b srib8c) compareby(city) comparelevels("01_Colombo|02_Kandy|03_Jaffna") comparetitle("Digital access by city") replace}
 
-{pstd}{bf:9. Show exact count values or force a histogram}
+{pstd}{bf:9. Show integer distributions or force a continuous histogram}
 
 {phang2}{cmd:. surveye employees visits revenue using "questionnaire.html", saving("numeric.html") discrete(employees visits) continuous(revenue) replace}
 
@@ -733,7 +736,7 @@ If the Java engine is missing or Stata reports {cmd:r(5100)}, verify the package
 
 {phang2}{cmd:. which surveye}
 
-{phang2}{cmd:. findfile surveye_2_1_1.jar}
+{phang2}{cmd:. findfile surveye_2_1_2.jar}
 
 {phang2}{cmd:. java query}
 

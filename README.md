@@ -43,11 +43,11 @@ Verify the wrapper, release-specific engine, and help file:
 
 ```stata
 which surveye
-findfile surveye_2_1_1.jar
+findfile surveye_2_1_2.jar
 help surveye
 ```
 
-The package marks its JARs with uppercase `F` records so `net install` places both files on the ado-path. Stata uses `surveye_2_1_1.jar`; the byte-identical `surveye.jar` remains available for command-line and development use. After replacing an earlier copy, type `discard` or restart Stata.
+The package marks its JARs with uppercase `F` records so `net install` places both files on the ado-path. Stata uses `surveye_2_1_2.jar`; the byte-identical `surveye.jar` remains available for command-line and development use. After replacing an earlier copy, type `discard` or restart Stata.
 
 ### Requirements
 
@@ -69,7 +69,7 @@ plain text in a browser:
 - <https://raw.githubusercontent.com/arehman10/SurvEye/main/surveye.pkg>
 
 Then retry the copy-ready command above. The package files must be at the
-repository root, not inside a ZIP file or an enclosing `surveye-2.1.1` folder.
+repository root, not inside a ZIP file or an enclosing `surveye-2.1.2` folder.
 If an earlier SurvEye JAR was already used in the current Stata session, fully
 restart Stata after reinstalling; the JVM can retain a loaded JAR until Stata
 exits. Regenerate previously created dashboards to receive the new interface.
@@ -211,12 +211,18 @@ Automatic chart choices emphasize compact comparison: horizontal percentage bars
 Small nonnegative whole-number variables are recognized as discrete counts
 when their labels and observed support strongly look like counts (for example,
 “How many workers?” or household size). Detection is conservative and uses the
-analysis sample after missing-code restrictions. Their distribution uses one
-bar per exact value, including zero-frequency gaps, while retaining the Stats
-tab. Negative questionnaire response codes are excluded, and Tukey outlier
-values are marked in coral. Use `discrete()` to force an exact-value display,
-`continuous()` to force a histogram, or `noautodiscrete` to disable only the
-automatic detection:
+analysis sample after missing-code restrictions. Readable ranges use one bar
+per exact integer, including zero-frequency gaps. Wider ranges automatically
+use equal-width, integer-aligned bins so an age, duration, or count plot never
+turns into hundreds of subpixel bars. The x axis is numeric and uses regular
+round-number ticks.
+
+Tukey outliers remain in the mean, range, outlier total, and Stats tab. When an
+extreme tail would crush the main distribution, the plot focuses on the Tukey
+inlier range and reports the omitted low/high counts at the corresponding edge.
+Negative questionnaire response codes are excluded. Use `discrete()` to request
+this smart integer display, `continuous()` to force a continuous histogram, or
+`noautodiscrete` to disable only automatic detection:
 
 ```stata
 surveye employees visits revenue using "questionnaire.html", ///
@@ -227,6 +233,8 @@ surveye employees visits revenue using "questionnaire.html", ///
 `histograms()` is compatible with `continuous()` and overrides automatic
 discrete detection. It conflicts with `discrete()`. Conversely, `bars()` and
 `donuts()` may accompany `discrete()` but conflict with `continuous()`.
+`maxcategories()` does not control numeric distributions; it remains a limit
+for categorical figures, filter controls, and preserved categorical labels.
 
 The chart palette uses consistent roles rather than arbitrary rainbow coloring: ordinary comparisons are blue, numeric distributions purple, date trends navy, and median/outlier guides coral. Generic Yes/No cards use blue and a neutral stone so color does not imply that every Yes is good or every No is bad; answered/missing cards use green and gray. Special values remain visibly muted, and category/map colors are assigned from the full response order so filtering does not make a category change color. Cards are packed into balanced three-, two-, or one-card rows, with equal edges inside each row and no extra page height.
 
@@ -426,7 +434,7 @@ For a map-enabled dashboard, the harness should allow or deliberately stub the d
 
 - `surveye.ado` — Stata command and Java bridge
 - `surveye.sthlp` — complete Stata help
-- `surveye_2_1_1.jar` — release-specific JAR used by Stata
+- `surveye_2_1_2.jar` — release-specific JAR used by Stata
 - `surveye.jar` — byte-identical conventional JAR
 - `surveye.pkg` and `stata.toc` — Stata package metadata
 - `example.do` — runnable starter and recipes

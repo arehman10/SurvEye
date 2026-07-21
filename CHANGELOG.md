@@ -5,6 +5,26 @@ development names are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and releases use
 semantic versioning.
 
+## [2.1.2] — 2026-07-20
+
+### Changed
+
+- Made integer distributions independent of `maxcategories()`.  Exact bars and
+  zero-frequency gaps are retained while readable; wider supports now use
+  equal-width, integer-aligned bins automatically.
+- Replaced categorical histogram axes with numeric linear axes and regular
+  round-number ticks for both discrete and continuous distributions.
+- Kept complete summary statistics while preventing extreme Tukey tails from
+  flattening the visible distribution; low/high tail counts are shown at the
+  corresponding plot edges.
+
+### Fixed
+
+- Prevented isolated extreme positive values from expanding an integer chart
+  into hundreds of empty bars and producing labels such as `18, 79, 140, ...`.
+- Added Arabic and Urdu interface text for smart integer bins, display ranges,
+  and outlier-tail annotations.
+
 ## [2.1.1] — 2026-07-20
 
 ### Fixed

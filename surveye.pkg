@@ -9,7 +9,7 @@ d native Stata weights, optional confidence intervals, outlier-aware numeric sum
 d Arabic/Urdu right-to-left interfaces, Unicode, and optional Leaflet GPS maps
 d with Google or OpenStreetMap base layers.
 d
-d Version: 2.1.1
+d Version: 2.1.2
 d Requires: Stata 16 or newer
 d Author: Attique Ur Rehman
 d Affiliation: Enterprise Analysis Unit, World Bank
@@ -21,7 +21,7 @@ d
 f surveye.ado
 f surveye.sthlp
 F surveye.jar
-F surveye_2_1_1.jar
+F surveye_2_1_2.jar
 f example.do
 f README.md
 f LICENSE
