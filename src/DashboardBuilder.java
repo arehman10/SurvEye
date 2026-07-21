@@ -286,13 +286,21 @@ final class DashboardBuilder {
         rebuildPanels(model);
         applyComparison(model, spec, table, config, questionsByVariable, customNames);
         applyManualGroups(model, config.varGroups, questionsByVariable);
-        if (config.autoGroups) applyAutomaticGroups(model, questionsByVariable,
-                lowerSet(Util.splitWords(config.ungroupVariables)));
+        if (config.autoGroups) {
+            Set<String> automaticUngroup = lowerSet(Util.splitWords(config.ungroupVariables));
+            // Currency variables need an ordinary numeric distribution so the
+            // USD switch can change the numeric scale.  Never fold them into
+            // an automatically inferred categorical family.
+            automaticUngroup.addAll(lowerSet(Util.splitWords(config.usdVariables)));
+            applyAutomaticGroups(model, questionsByVariable, automaticUngroup);
+        }
         limitPanels(model, config.maxPanels);
         sortSections(model);
         addFilters(model, spec, table, config);
         addHighlights(model, spec, table, config);
         addKeyMessages(model, config.keyMessages);
+        configureUsd(model, spec, table, config, customNames);
+        configureSummaryTable(model, spec, table, config, customNames);
         if (model.weighted) model.requiredColumns.add(requireDataColumn(table, config.weight, config.demo, "weight"));
         if (!blank(config.latitude)) {
             model.requiredColumns.add(requireDataColumn(table, config.latitude, config.demo, "latitude"));
@@ -324,6 +332,165 @@ final class DashboardBuilder {
         model.observations = data.size();
         if (model.observations == 0) throw new IllegalArgumentException("The analysis sample contains no observations.");
         return new Result(model, data);
+    }
+
+    private static void configureUsd(DashboardModel model, QuestionnaireSpec spec, CsvTable table,
+                                     DashboardConfig config, Set<String> customNames) {
+        List<String> requested = Util.splitWords(config.usdVariables);
+        if (requested.isEmpty()) return;
+        if (!(config.usdRate > 0.0) || Double.isInfinite(config.usdRate)) {
+            throw new IllegalArgumentException("usdrate must be a finite number greater than zero.");
+        }
+        model.usdEnabled = true;
+        model.usdRate = config.usdRate;
+        model.currency = blank(config.currency) ? "Local currency" : config.currency.trim();
+        Set<String> seen = new LinkedHashSet<String>();
+        for (String requestedVariable : requested) {
+            String variable = requireDataColumn(table, requestedVariable, config.demo, "usdvars");
+            String key = lower(variable);
+            if (!seen.add(key)) continue;
+            if (!config.demo && (table == null || !table.mostlyNumeric(variable))) {
+                throw new IllegalArgumentException("usdvars() requires numeric data: " + requestedVariable + ".");
+            }
+            ensureAuxiliaryMetadata(model, spec, table, config, customNames, variable, "hist");
+            normalizeUsdDistribution(model, variable);
+            model.requiredColumns.add(variable);
+            model.usdVariables.add(variable);
+        }
+    }
+
+    private static void normalizeUsdDistribution(DashboardModel model, String variable) {
+        for (ChartPanel panel : model.panels) {
+            boolean contains = false;
+            for (String member : panel.memberVariables()) if (same(member, variable)) { contains = true; break; }
+            if (!contains) continue;
+            if (panel.memberVariables().size() != 1 || "family".equals(panel.kind) || "comparison".equals(panel.kind)) {
+                throw new IllegalArgumentException("usdvars(" + variable
+                        + ") cannot be used in a grouped or comparison panel; remove it from vargroups()/compare().");
+            }
+            panel.kind = "hist";
+        }
+        VariableMeta meta = model.metadata.get(variable);
+        if (meta != null) {
+            if (meta.stataFormat != null && meta.stataFormat.matches("(?i)^%t[cdwmqhyb].*")) {
+                throw new IllegalArgumentException("usdvars() may not contain a Stata date/time variable: " + variable + ".");
+            }
+            meta.kind = "hist";
+            meta.distributionMode = "continuous";
+            meta.nonnegative = false;
+        }
+    }
+
+    private static void configureSummaryTable(DashboardModel model, QuestionnaireSpec spec, CsvTable table,
+                                               DashboardConfig config, Set<String> customNames) {
+        boolean hasBy = !blank(config.tableBy);
+        boolean hasVariables = !blank(config.tableVariables);
+        if (!hasBy && !hasVariables) return;
+        if (hasBy != hasVariables) {
+            throw new IllegalArgumentException("tableby and tablevars must be specified together.");
+        }
+
+        DashboardTable definition = new DashboardTable();
+        definition.title = blank(config.tableTitle) ? "Summary table" : config.tableTitle.trim();
+        definition.subtitle = config.tableSubtitle;
+        definition.totalLabel = blank(config.tableTotal) ? "All filtered interviews" : config.tableTotal.trim();
+        definition.weightLabel = blank(config.tableWeightLabel) ? "Weighted total" : config.tableWeightLabel.trim();
+        definition.by = requireDataColumn(table, config.tableBy, config.demo, "tableby");
+        ensureAuxiliaryMetadata(model, spec, table, config, customNames, definition.by, "filter");
+        VariableMeta byMeta = model.metadata.get(definition.by);
+        definition.byLabel = byMeta == null ? definition.by : byMeta.label;
+        model.requiredColumns.add(definition.by);
+
+        List<String> requested = Util.splitWords(config.tableVariables);
+        if (requested.isEmpty()) throw new IllegalArgumentException("tablevars must contain at least one variable.");
+        List<String> statistics = blank(config.tableStats)
+                ? new ArrayList<String>() : splitTableEntries(config.tableStats, "tablestats");
+        List<String> labels = blank(config.tableLabels)
+                ? new ArrayList<String>() : splitTableEntries(config.tableLabels, "tablelabels");
+        if (!statistics.isEmpty() && statistics.size() != requested.size()) {
+            throw new IllegalArgumentException("tablestats must have one pipe-delimited entry per tablevars variable.");
+        }
+        if (!labels.isEmpty() && labels.size() != requested.size()) {
+            throw new IllegalArgumentException("tablelabels must have one pipe-delimited entry per tablevars variable.");
+        }
+
+        Set<String> seen = new LinkedHashSet<String>();
+        for (int i = 0; i < requested.size(); i++) {
+            String requestedVariable = requested.get(i);
+            String variable = requireDataColumn(table, requestedVariable, config.demo, "tablevars");
+            if (same(variable, definition.by)) {
+                throw new IllegalArgumentException("tableby may not also appear in tablevars: " + requestedVariable + ".");
+            }
+            if (!seen.add(lower(variable))) {
+                throw new IllegalArgumentException("tablevars contains a duplicate variable: " + requestedVariable + ".");
+            }
+            String statistic = statistics.isEmpty() ? "auto" : normalizeTableStatistic(statistics.get(i));
+            boolean numericStatistic = statistic.equals("mean") || statistic.equals("median") || statistic.equals("sum");
+            if (numericStatistic && !config.demo && (table == null || !table.mostlyNumeric(variable))) {
+                throw new IllegalArgumentException("tablestats(" + statistic + ") requires numeric data: " + requestedVariable + ".");
+            }
+            ensureAuxiliaryMetadata(model, spec, table, config, customNames, variable,
+                    numericStatistic || (!config.demo && table != null && table.mostlyNumeric(variable)) ? "hist" : "bar");
+            VariableMeta meta = model.metadata.get(variable);
+            if (statistic.startsWith("share:") && meta != null && meta.canonicalCodes) {
+                statistic = "share:" + Util.canonicalCode(statistic.substring("share:".length()));
+            }
+            definition.variables.add(variable);
+            definition.statistics.add(statistic);
+            definition.labels.add(labels.isEmpty()
+                    ? (meta == null ? variable : meta.label) : labels.get(i).trim());
+            model.requiredColumns.add(variable);
+        }
+        model.summaryTable = definition;
+    }
+
+    private static List<String> splitTableEntries(String raw, String option) {
+        String cleaned = stripOuterQuotes(raw);
+        String[] parts = cleaned.split("\\|", -1);
+        List<String> output = new ArrayList<String>(parts.length);
+        for (String part : parts) {
+            String value = part.trim();
+            if (value.isEmpty()) {
+                throw new IllegalArgumentException(option + " may not contain an empty pipe-delimited entry.");
+            }
+            output.add(value);
+        }
+        return output;
+    }
+
+    private static String normalizeTableStatistic(String raw) {
+        String value = stripOuterQuotes(raw).trim();
+        String lower = value.toLowerCase(Locale.ROOT);
+        if (lower.equals("auto") || lower.equals("share") || lower.equals("mean")
+                || lower.equals("median") || lower.equals("sum")) return lower;
+        if (lower.startsWith("share:") && value.substring(value.indexOf(':') + 1).trim().length() > 0) {
+            return "share:" + value.substring(value.indexOf(':') + 1).trim();
+        }
+        throw new IllegalArgumentException("Invalid tablestats entry: " + value
+                + ". Use auto, share, share:<code>, mean, median, or sum.");
+    }
+
+    private static void ensureAuxiliaryMetadata(DashboardModel model, QuestionnaireSpec spec, CsvTable table,
+                                                DashboardConfig config, Set<String> customNames,
+                                                String variable, String preferredKind) {
+        if (model.metadata.containsKey(variable)) return;
+        Question question = spec.findQuestion(variable);
+        if (question == null && table != null) {
+            question = inferredQuestion(table, variable, config, customNames.contains(lower(variable)));
+        }
+        if (question == null) {
+            // Demo configurations do not have a CSV from which to infer a
+            // data-only variable.  A minimal numeric/string contract is still
+            // enough for the generated preview and runtime controls.
+            question = new Question();
+            question.variable = variable;
+            question.label = Util.displayLabel(config.dataLabels.get(lower(variable)), variable);
+            question.type = "hist".equals(preferredKind) ? "numeric" : "single";
+            question.rawType = "configured data variable";
+        } else question = question.copy();
+        String kind = "filter".equals(preferredKind) ? "filter"
+                : ("numeric".equals(question.type) ? "hist" : preferredKind);
+        model.metadata.put(variable, metadata(question, kind, table, config));
     }
 
     private static List<String> observedMapGroups(CsvTable table, String variable, VariableMeta meta) {
@@ -1521,7 +1688,7 @@ final class DashboardBuilder {
         // A generic log-normal preview is visibly wrong for percentage
         // questions because it routinely produces values above 100.  Keep
         // percentage/share previews in their natural range while retaining a
-        // small fully-owned/100% tail so the outlier-focused display remains
+        // small fully-owned/100% tail so the numeric distribution remains
         // demonstrable.  Questions about percentage *change* are left
         // unconstrained because negative values may be meaningful there.
         boolean percentage = !label.contains("change")
@@ -1535,7 +1702,7 @@ final class DashboardBuilder {
             return Math.max(0L, Math.round(4 + random.nextGaussian() * 2.1));
         }
         double base = Math.exp(random.nextGaussian() * 1.15 + 4.4);
-        // High positive values exercise Tukey outlier handling without
+        // High positive values exercise full-range numeric handling without
         // inventing arbitrary negative responses that violate many surveys'
         // validation rules.
         if (random.nextDouble() < 0.07) base *= 6 + random.nextDouble() * 4;

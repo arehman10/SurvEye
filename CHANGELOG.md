@@ -5,6 +5,43 @@ development names are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and releases use
 semantic versioning.
 
+## [2.1.3] — 2026-07-21
+
+### Added
+
+- Added a runtime **Weighted estimates** switch whenever a native Stata weight
+  is supplied.  Weighted results remain the default; readers can recalculate
+  charts, comparisons, numeric summaries, and profile tables without weights
+  while raw sample counts remain unchanged.
+- Added a local-currency/USD switch configured by `usdvars()`, `usdrate()`, and
+  `currency()`.  Local currency remains the default, and one documented fixed
+  rate updates declared monetary charts, Stats, and profile-table summaries.
+- Added a responsive side-by-side profile table configured by `tableby()` and
+  `tablevars()`, with `auto`, `share`, explicit-code share, mean, median, and
+  sum columns; optional column labels, title, subtitle, all-group reference
+  label, and weighted-total heading; and live filter, weight, and currency
+  refresh.  The table ignores only its own grouping filter so all comparison
+  rows and the reference benchmark remain visible.
+
+### Changed
+
+- Removed Tukey fences, outlier counts, weighted outlier mass/share, whisker
+  boxes, tail annotations, and outlier-specific colors from numeric cards.
+- Numeric distributions now retain every valid measurement across their full
+  plotted range.  A single dotted `Mean + 3 SD` reference is drawn only when
+  the standard deviation is positive and the reference lies strictly inside
+  that range.
+- Kept wide integer supports readable with automatic equal-width,
+  integer-aligned bins and regular numeric ticks, independently of
+  `maxcategories()`.
+
+### Fixed
+
+- Recalculated every numeric Stats table from the current filtered rows even
+  while its Stats tab is open and the lazily rendered chart canvas is hidden.
+- Applied the same live filter refresh to unweighted and weighted summaries,
+  including valid/missing counts, moments, quantiles, and the 3-SD reference.
+
 ## [2.1.2] — 2026-07-20
 
 ### Changed

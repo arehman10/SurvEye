@@ -1,4 +1,4 @@
-*! SurvEye example 2.1.2 20jul2026
+*! SurvEye example 2.1.3 21jul2026
 version 16.0
 clear all
 set more off
@@ -143,7 +143,9 @@ answered/missing completion, and donut cards never show CI text or whiskers:
         saving("shares_90.html") ci level(90) replace
 
 Numeric cards automatically include Distribution and Stats tabs.  The
-distribution marks Tukey outliers while the table retains them in its summary:
+distribution keeps every valid measurement and conditionally marks the
+mean-plus-three-standard-deviations reference.  The Stats table updates live
+when dashboard filters change:
 
     surveye sales employment using "questionnaire.html", ///
         saving("numeric_review.html") histograms(sales employment) replace
@@ -167,6 +169,48 @@ frequency weights must contain integers:
     surveye sector sales employment using "questionnaire.html" [pw=pop], ///
         saving("weighted.html") ///
         filters(region) note("Intervals use a Kish effective-n approximation.") replace
+
+A weighted dashboard automatically shows a Weighted estimates switch.  It is
+on initially; turning it off recalculates charts, numeric Stats, comparisons,
+and the optional profile table without weights.  Raw n remains unweighted in
+both modes.
+
+Add a local-currency/USD switch.  usdvars() identifies monetary variables,
+usdrate() is local-currency units per US dollar, and currency() supplies the
+local code.  The dashboard starts in local currency.  SurvEye does not look up
+exchange rates, so document the fixed rate used:
+
+    surveye sales costs profit using "questionnaire.html", ///
+        saving("financials.html") ///
+        usdvars(sales costs profit) usdrate(300) currency(LKR) ///
+        note("USD values use a fixed rate of 300 LKR per USD.") ///
+        replace open
+
+Add a compact profile table.  tableby() supplies rows and tablevars() supplies
+columns.  tablestats() and tablelabels() are pipe-separated and follow the
+same order as tablevars().  Variable labels are used automatically when
+tablelabels() is omitted.  The table always shows raw n; with weights on it
+also shows the weighted total.  Every table has an all-strata reference row;
+tabletotal() supplies a clearer label for it:
+
+    surveye women_led sales banked digital_channel practice_index ///
+        using "questionnaire.html" [pw=pop], ///
+        saving("stratum_profile.html") ///
+        filters(stratum owner_type) ///
+        usdvars(sales) usdrate(300) currency(LKR) ///
+        tableby(stratum) ///
+        tablevars(women_led sales banked digital_channel practice_index) ///
+        tablestats("share:1|median|share:1|share:1|mean") ///
+        tablelabels("Women-led|Median sales|Banked|Digital channel|Practice index") ///
+        tabletitle("Stratum profile") ///
+        tablesubtitle("Key indicators side by side") ///
+        tabletotal("Sri Lanka (all surveyed locations)") ///
+        tableweightlabel("Est. firms") replace open
+
+The profile table deliberately ignores only its own tableby() filter.  This
+keeps every stratum and the all-strata reference visible, while honoring every
+other active filter and the current weight/USD settings.  Selected strata may
+be highlighted for orientation.
 
 Build an Arabic dashboard.  uilanguage(ar) is short for uilanguage(arabic),
 and direction(auto) selects right-to-left layout:

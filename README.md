@@ -9,7 +9,7 @@
 [Examples](example.do) ·
 [Changelog](CHANGELOG.md)
 
-SurvEye is a Stata 16+ tool, distributed as the command `surveye`, that turns a Survey Solutions questionnaire HTML file and the corresponding Stata data into a polished, interactive HTML dashboard. Questionnaire text supplies the labels, sections, response order, and categories; the command adds compact charts, smart related-variable families, explicit subgroup comparisons, filters, messages, custom data variables, native Stata weights, optional confidence intervals, outlier-aware numeric summaries, a localized right-to-left interface, and an optional Leaflet country map.
+SurvEye is a Stata 16+ tool, distributed as the command `surveye`, that turns a Survey Solutions questionnaire HTML file and the corresponding Stata data into a polished, interactive HTML dashboard. Questionnaire text supplies the labels, sections, response order, and categories; the command adds compact charts, smart related-variable families, explicit subgroup comparisons, filters, messages, custom data variables, native Stata weights, optional confidence intervals, live-filtered numeric summaries, optional profile tables, local-currency/USD switching, a localized right-to-left interface, and an optional Leaflet country map.
 
 The command has deliberately useful defaults:
 
@@ -17,7 +17,10 @@ The command has deliberately useful defaults:
 - compatible suffix families such as `srib8a srib8b srib8c` are combined automatically, with manual grouping and opt-out controls available;
 - `density(compact)` keeps large instruments readable without excessive scrolling;
 - categorical cards are kept uncluttered by default; add `ci` when intervals are useful on eligible bars;
-- numeric cards combine an outlier-aware distribution with a detailed **Stats** tab;
+- numeric cards combine a complete distribution, a conditional mean-plus-three-standard-deviations guide, and a detailed **Stats** tab that updates with every filter;
+- supplying a Stata weight automatically adds a **Weighted estimates** switch, initially on, so readers can compare weighted and unweighted results without rebuilding the file;
+- declared monetary variables can switch between their local currency and USD using one fixed, documented conversion rate;
+- an optional profile table places selected indicators side by side by a grouping variable and follows the same filters, weight switch, and currency switch as the charts;
 - `uilanguage(auto)` translates the interface and selects right-to-left layout for Arabic and Urdu questionnaires;
 - GPS maps use individual points over Google Hybrid by default—nearby observations are not collapsed unless requested; and
 - the dataset in memory is preserved while a temporary UTF-8 raw-code CSV is passed to the bundled Java engine through Stata's `javacall` interface.
@@ -43,11 +46,11 @@ Verify the wrapper, release-specific engine, and help file:
 
 ```stata
 which surveye
-findfile surveye_2_1_2.jar
+findfile surveye_2_1_3.jar
 help surveye
 ```
 
-The package marks its JARs with uppercase `F` records so `net install` places both files on the ado-path. Stata uses `surveye_2_1_2.jar`; the byte-identical `surveye.jar` remains available for command-line and development use. After replacing an earlier copy, type `discard` or restart Stata.
+The package marks its JARs with uppercase `F` records so `net install` places both files on the ado-path. Stata uses `surveye_2_1_3.jar`; the byte-identical `surveye.jar` remains available for command-line and development use. After replacing an earlier copy, type `discard` or restart Stata.
 
 ### Requirements
 
@@ -69,7 +72,7 @@ plain text in a browser:
 - <https://raw.githubusercontent.com/arehman10/SurvEye/main/surveye.pkg>
 
 Then retry the copy-ready command above. The package files must be at the
-repository root, not inside a ZIP file or an enclosing `surveye-2.1.2` folder.
+repository root, not inside a ZIP file or an enclosing `surveye-2.1.3` folder.
 If an earlier SurvEye JAR was already used in the current Stata session, fully
 restart Stata after reinstalling; the JVM can retain a loaded JAR until Stata
 exits. Regenerate previously created dashboards to receive the new interface.
@@ -124,6 +127,8 @@ The weight specification is optional and must name one variable. Use Stata's nat
 | Choose questionnaire content | `questions()`, `sections()`, `sectionmatch()`, `exclude()`, `maxpanels()`, `showempty`, `strict` |
 | Add data-only variables | `customvars()`, `addtosections()` |
 | Add controls | `filters()`, `highlights()`, `maxcategories()` |
+| Add reader toggles | native Stata weight syntax; `usdvars()`, `usdrate()`, `currency()` |
+| Add a profile table | `tableby()`, `tablevars()`, `tablestats()`, `tablelabels()`, `tabletitle()`, `tablesubtitle()`, `tabletotal()`, `tableweightlabel()` |
 | Add narrative | `keymessages()`, `customsections()`, `note()`, `source()`, `disclaimer()` |
 | Group related items | `vargroups()`, `ungroupvars()`, `noautogroups` |
 | Compare binary outcomes | `compare()`, `compareby()`, `comparetitle()`, `comparelevels()` |
@@ -143,7 +148,7 @@ surveye sales employment using "questionnaire.html", ///
     questions("services_used") saving("results.html") replace
 ```
 
-Variables used only in `filters()`, `highlights()`, map options, or as the weight variable are automatically included in the temporary export but are not charted. The dashboard is capped at 100 panels by default. Use focused selectors, raise `maxpanels()`, or specify `maxpanels(0)` to include all eligible panels.
+Variables used only in `filters()`, `highlights()`, the profile table, USD conversion, map options, or as the weight variable are automatically included in the temporary export but are not charted. The dashboard is capped at 100 panels by default. Use focused selectors, raise `maxpanels()`, or specify `maxpanels(0)` to include all eligible panels.
 
 Filter choices are drawn only from observed valid values. Numeric filters
 compare normalized numeric values, multiselect filters use any-selected
@@ -217,10 +222,11 @@ use equal-width, integer-aligned bins so an age, duration, or count plot never
 turns into hundreds of subpixel bars. The x axis is numeric and uses regular
 round-number ticks.
 
-Tukey outliers remain in the mean, range, outlier total, and Stats tab. When an
-extreme tail would crush the main distribution, the plot focuses on the Tukey
-inlier range and reports the omitted low/high counts at the corresponding edge.
-Negative questionnaire response codes are excluded. Use `discrete()` to request
+Every valid measurement remains in the distribution and summary. When the
+weighted or unweighted mean plus three standard deviations falls strictly
+inside the observed range, a dotted reference line marks that value. The guide
+is omitted when the standard deviation is zero or the reference lies outside
+the plotted range. Negative questionnaire response codes are excluded. Use `discrete()` to request
 this smart integer display, `continuous()` to force a continuous histogram, or
 `noautodiscrete` to disable only automatic detection:
 
@@ -236,7 +242,7 @@ discrete detection. It conflicts with `discrete()`. Conversely, `bars()` and
 `maxcategories()` does not control numeric distributions; it remains a limit
 for categorical figures, filter controls, and preserved categorical labels.
 
-The chart palette uses consistent roles rather than arbitrary rainbow coloring: ordinary comparisons are blue, numeric distributions purple, date trends navy, and median/outlier guides coral. Generic Yes/No cards use blue and a neutral stone so color does not imply that every Yes is good or every No is bad; answered/missing cards use green and gray. Special values remain visibly muted, and category/map colors are assigned from the full response order so filtering does not make a category change color. Cards are packed into balanced three-, two-, or one-card rows, with equal edges inside each row and no extra page height.
+The chart palette uses consistent roles rather than arbitrary rainbow coloring: ordinary comparisons are blue, numeric distributions purple, date trends navy, and the optional three-standard-deviation guide coral. Generic Yes/No cards use blue and a neutral stone so color does not imply that every Yes is good or every No is bad; answered/missing cards use green and gray. Special values remain visibly muted, and category/map colors are assigned from the full response order so filtering does not make a category change color. Cards are packed into balanced three-, two-, or one-card rows, with equal edges inside each row and no extra page height.
 
 ## Add variables that are not in the questionnaire
 
@@ -319,7 +325,97 @@ The weight must resolve to one numeric variable. Negative values are rejected, a
 
 Weights affect shares, histograms, means, medians, quantiles, standard deviations, and the numeric Stats table. They do not replace `svyset`, and `surveye` does not estimate design-based standard errors. When `ci` is supplied, frequency-weighted Wilson intervals use the weighted count; analytic- and probability-weighted intervals use a clearly labelled Kish effective-sample-size approximation. Importance weights have no general sampling interpretation, so a requested interval is suppressed automatically and the dashboard explains why. The remaining weighted intervals do not account for strata, primary sampling units, finite-population corrections, or other survey-design features.
 
-## Confidence intervals and numeric outliers
+Supplying any supported Stata weight also adds a **Weighted estimates** switch
+to the dashboard. It starts on, so the initial display is weighted. Turning it
+off recalculates charts, comparisons, numeric summaries, and the optional
+profile table from the same exported analysis sample using one unit per row;
+turning it on restores the supplied weight. Raw sample counts remain raw in
+both modes. The switch does not restore observations excluded by `if`, `in`,
+or invalid, zero, or missing weights when the dashboard was built.
+
+## Local currency and USD
+
+The typical complete specification uses all three currency options to let
+readers switch selected monetary variables between local currency and USD:
+
+```stata
+surveye sales costs profit using "questionnaire.html", ///
+    saving("financials.html") ///
+    usdvars(sales costs profit) usdrate(300) currency(LKR) ///
+    replace open
+```
+
+`usdvars()` names numeric, non-date variables to convert and requires
+`usdrate()`. `usdrate(#)` is the number of local
+currency units per US dollar, so the USD display is the stored local value
+divided by that rate. `currency(code)` supplies the local-currency code shown
+in labels, such as `LKR`, `KES`, or `PKR`; if it is omitted, the label is
+**Local currency**. The dashboard starts in local currency and adds a USD
+switch. The switch updates charts,
+numeric Stats, and profile-table `mean`, `median`, and `sum` cells that use a
+variable in `usdvars()`; it does not alter the embedded source values.
+
+SurvEye does not download a live or historical exchange rate. Choose a rate
+appropriate to the data's reference period and document it in `note()` or
+`source()` when the dashboard will be shared.
+
+## Side-by-side profile table
+
+`tableby()` and `tablevars()` add a compact, responsive table near the top of
+the dashboard, before the detailed chart sections. The grouping variable
+supplies the rows, and the variables in `tablevars()` supply the indicator
+columns. Use the table for a small set of decision-relevant measures rather
+than reproducing every chart:
+
+```stata
+surveye women_led sales banked digital_channel practice_index ///
+    using "questionnaire.html" [pw=pop], ///
+    saving("stratum_profile.html") filters(stratum owner_type) ///
+    usdvars(sales) usdrate(300) currency(LKR) ///
+    tableby(stratum) ///
+    tablevars(women_led sales banked digital_channel practice_index) ///
+    tablestats("share:1|median|share:1|share:1|mean") ///
+    tablelabels("Women-led|Median sales|Banked|Digital channel|Practice index") ///
+    tabletitle("Stratum profile") ///
+    tablesubtitle("Key indicators side by side") ///
+    tabletotal("Sri Lanka (all surveyed locations)") ///
+    tableweightlabel("Est. firms") replace open
+```
+
+Both `tableby()` and `tablevars()` are required when a profile table is
+requested. By default, each column heading is the variable label, with the
+variable name used only when no label exists. `tablelabels()` overrides those
+headings with a pipe-separated list in the same order as `tablevars()`.
+`tabletitle()` and `tablesubtitle()` provide the table heading and one-line
+explanation.
+
+`tablestats()` is an optional pipe-separated list with one entry per table
+variable. The choices are `auto`, `share`, `share:<code>`, `mean`, `median`,
+and `sum`. `auto` uses the median for numeric distribution variables and an
+affirmative share for other compatible variables. `share` also uses the
+recognized affirmative category; use `share:<code>` when the intended raw
+response code must be explicit. `mean`, `median`, and `sum` require numeric
+variables. Omit `tablestats()` to use `auto` for every column.
+
+The table always shows raw `n`. In weighted mode it also shows the sum of the
+active weights; `tableweightlabel()` changes that column heading, for
+example to **Est. firms**. The weighted-total column is hidden in unweighted
+mode and returns when **Weighted estimates** is switched back on. Table
+shares, means, medians, sums, and currency values recalculate immediately with
+the dashboard controls. Interpret that total according to the supplied Stata
+weight type; only an appropriate expansion weight should be described as an
+estimated population count.
+
+The table always ends with an all-group reference row; its default label is
+**All filtered interviews**. `tabletotal("label")` replaces that row label,
+for example with a country benchmark. The table deliberately ignores only its
+own `tableby()` filter: every grouping row and the all-group benchmark remain
+available for comparison, while selected grouping rows can be highlighted.
+Every other active dashboard filter is honored, as are the current weight and
+local-currency/USD settings. This prevents a stratum selection from silently
+turning the benchmark into a copy of the selected stratum.
+
+## Confidence intervals and numeric distributions
 
 Confidence intervals are off by default. This keeps compact dashboards easy to scan and avoids placing inferential marks on binary composition bars, where they can be mistaken for a range covering part of the stacked bar.
 
@@ -337,10 +433,10 @@ For unweighted data, requested intervals use the valid raw count. Frequency weig
 
 Every numeric card has two views:
 
-- **Distribution** shows a compact histogram over the Tukey whisker range, a box/median guide, and counts of values outside the fences; and
-- **Stats** reports valid raw n, missing/excluded n, mean, standard deviation, minimum, maximum, p25, median, p75, Tukey fences, and the outlier count. Weighted dashboards additionally report the total weight carried by outliers and its share of valid weight.
+- **Distribution** shows all valid measurements on a regular numeric axis. Integer counts use exact bars while readable and switch automatically to equal-width, integer-aligned bins for wider ranges. A dotted **Mean + 3 SD** guide appears only when the standard deviation is positive and the reference falls strictly inside the plotted range.
+- **Stats** reports valid raw n, missing/excluded n, mean, standard deviation, minimum, maximum, p25, median, p75, and the mean-plus-three-standard-deviations reference. The table is recalculated immediately whenever a dashboard filter changes, including while the Stats tab is open.
 
-Tukey outliers are values below `p25 - 1.5 × IQR` or above `p75 + 1.5 × IQR`. They are counted and retained in the statistics; only the histogram scale is focused on the whisker range so extreme values do not flatten the main distribution. With weights, the card clearly labels the descriptive weighted statistics.
+No observation is classified or labelled as a Tukey outlier. All valid values remain in the chart and statistics. With weights, the mean, standard deviation, quantiles, guide, and distribution use the supplied weights; the card identifies them as descriptive weighted statistics and reports the valid weighted sum.
 
 ## Country maps
 
@@ -387,7 +483,7 @@ A map-enabled HTML file embeds valid latitude and longitude so Leaflet can draw 
 
 One invocation represents one rectangular unit of observation. Survey Solutions roster exports are separate files; create one dashboard per roster level, or merge a carefully defined roster summary into the parent data first. Blind joins can change denominators.
 
-The HTML embeds the selected analysis-level values needed by filters and figures. Text, picture, audio, linked text-list, and questionnaire-GPS completion items are reduced to answered/not-answered flags instead of embedding their original contents. Raw response codes are sent to the engine so questionnaire categories remain authoritative; `customvars()` is the exception where Stata variable labels and, when applicable, observed value labels are intentionally used. Questionnaire-defined special responses remain visible and muted in categorical figures. Negative special codes are automatically excluded from numeric histograms, statistics, outlier detection, and numeric filters because they are not measurements; nonnegative substantive shortcuts remain valid. This removes Survey Solutions responses such as `-4` and `-9` without discarding legitimate negative-valued questions. Use `missingcodes()` for additional sentinels not declared by the questionnaire, for example `missingcodes(-999 -998 999)`.
+The HTML embeds the selected analysis-level values needed by filters and figures. Text, picture, audio, linked text-list, and questionnaire-GPS completion items are reduced to answered/not-answered flags instead of embedding their original contents. Raw response codes are sent to the engine so questionnaire categories remain authoritative; `customvars()` is the exception where Stata variable labels and, when applicable, observed value labels are intentionally used. Questionnaire-defined special responses remain visible and muted in categorical figures. Negative special codes are automatically excluded from numeric histograms, statistics, and numeric filters because they are not measurements; nonnegative substantive shortcuts remain valid. This removes Survey Solutions responses such as `-4` and `-9` without discarding legitimate negative-valued questions. Use `missingcodes()` for additional sentinels not declared by the questionnaire, for example `missingcodes(-999 -998 999)`.
 
 The command does not upload data. Nevertheless, the finished file is an interactive data product, not a static image, and should be stored and shared under the same controls as its inputs.
 
@@ -428,17 +524,19 @@ npm install
 npm run qa -- ../dashboard.html --out qa-output/dashboard
 ```
 
-For a map-enabled dashboard, the harness should allow or deliberately stub the documented Google/OpenStreetMap tile requests while continuing to reject unexpected external traffic. Verify point count, coincident-point visibility, base-layer switching, filtering, numeric tabs, outlier annotations, default CI absence, `ci level(#)` opt-in behavior on eligible bars, responsive layout, keyboard operation, and horizontal overflow.
+For a map-enabled dashboard, the harness should allow or deliberately stub the documented Google/OpenStreetMap tile requests while continuing to reject unexpected external traffic. Verify point count, coincident-point visibility, base-layer switching, filtering, live numeric Stats tabs, conditional mean-plus-three-standard-deviations guides, default CI absence, `ci level(#)` opt-in behavior on eligible bars, responsive layout, keyboard operation, and horizontal overflow.
 
 ## Files
 
 - `surveye.ado` — Stata command and Java bridge
 - `surveye.sthlp` — complete Stata help
-- `surveye_2_1_2.jar` — release-specific JAR used by Stata
+- `surveye_2_1_3.jar` — release-specific JAR used by Stata
 - `surveye.jar` — byte-identical conventional JAR
 - `surveye.pkg` and `stata.toc` — Stata package metadata
 - `example.do` — runnable starter and recipes
 - `tests/stata_smoke.do` — licensed-Stata integration checks
+- `examples/sample_dashboard.html` — simulated browser-ready feature preview
+- `tests/sample_dashboard_config.tsv` — reproducible configuration for that preview
 - `GITHUB_UPLOAD.md`, `PUBLISHING.md`, and `release.sh` — GitHub/SSC release instructions and clean archive builder
 - `LICENSE` and `THIRDPARTY-LICENSES.md` — licensing
 - `CHANGELOG.md` — release history

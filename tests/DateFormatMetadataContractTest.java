@@ -23,7 +23,7 @@ public final class DateFormatMetadataContractTest {
     public static void main(String[] args) throws Exception {
         if (args.length != 1) throw new IllegalArgumentException("Expected project root.");
         Path root = Paths.get(args[0]).toAbsolutePath().normalize();
-        require(Files.isRegularFile(root.resolve("surveye_2_1_2.jar")),
+        require(Files.isRegularFile(root.resolve("surveye_2_1_3.jar")),
                 "Release engine JAR is missing from project root: " + root);
         Path temporary = Files.createTempDirectory("surveye-date-format-");
         try {

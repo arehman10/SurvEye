@@ -5,7 +5,7 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 BUILD="$ROOT/build/release"
 CLASSES="$BUILD/classes"
 GENERIC_JAR="$ROOT/surveye.jar"
-STATA_JAR="$ROOT/surveye_2_1_2.jar"
+STATA_JAR="$ROOT/surveye_2_1_3.jar"
 
 mkdir -p "$CLASSES"
 # Remove both files and directories from earlier builds.  Keeping only files

@@ -1,4 +1,4 @@
-*! surveye licensed-Stata smoke test 2.1.2 20jul2026
+*! surveye licensed-Stata smoke test 2.1.3 21jul2026
 version 16.0
 clear all
 set more off
@@ -13,11 +13,11 @@ local caller_pwd `"`c(pwd)'"'
 quietly cd `"`macval(root)'"'
 local root `"`c(pwd)'"'
 confirm file `"`root'/surveye.ado"'
-confirm file `"`root'/surveye_2_1_2.jar"'
+confirm file `"`root'/surveye_2_1_3.jar"'
 adopath ++ `"`root'"'
 discard
 quietly do `"`root'/surveye.ado"'
-findfile surveye_2_1_2.jar
+findfile surveye_2_1_3.jar
 display as text "Testing engine: " as result `"`r(fn)'"'
 
 local questionnaire `"`root'/tests/fixed_multi_questionnaire.html"'
@@ -25,7 +25,7 @@ local datafile      `"`root'/tests/fixed_multi.csv"'
 confirm file `"`questionnaire'"'
 confirm file `"`datafile'"'
 
-display as text "[1/18] sparse and malformed Java status records"
+display as text "[1/19] sparse and malformed Java status records"
 tempfile sparse_status malformed_status
 tempname status_fh
 file open `status_fh' using `"`sparse_status'"', write text replace
@@ -48,16 +48,16 @@ file close `status_fh'
 capture noisily _surveye_read_status using `"`malformed_status'"'
 assert _rc == 498
 
-display as text "[2/18] describe mode"
+display as text "[2/19] describe mode"
 surveye describe using `"`questionnaire'"', detail
 assert r(success) == 1
 assert r(k_sections) == 1
-if `"`r(package_version)'"' != "2.1.2" {
+if `"`r(package_version)'"' != "2.1.3" {
     display as error "Wrong surveye version loaded: `r(package_version)'"
     exit 9
 }
 
-display as text "[3/18] demo mode"
+display as text "[3/19] demo mode"
 tempfile demo_base
 local demo_html `"`demo_base'.html"'
 surveye demo using `"`questionnaire'"', ///
@@ -66,7 +66,7 @@ assert r(success) == 1
 assert r(N) == 12
 confirm file `"`demo_html'"'
 
-display as text "[4/18] main mode, if restriction, and data preservation"
+display as text "[4/19] main mode, if restriction, and data preservation"
 import delimited using `"`datafile'"', clear varnames(1)
 local original_N = _N
 tempfile main_base
@@ -79,7 +79,7 @@ assert r(N) == 3
 assert _N == `original_N'
 confirm file `"`main_html'"'
 
-display as text "[5/18] all-missing selected row is retained"
+display as text "[5/19] all-missing selected row is retained"
 tempfile missing_base
 local missing_html `"`missing_base'.html"'
 surveye using `"`questionnaire'"', ///
@@ -98,7 +98,7 @@ generate double importance = wmedian
 replace importance = 3 in 2
 generate double allzero = 0
 
-display as text "[6/18] native analytic weights and zero/missing exclusion"
+display as text "[6/19] native analytic weights and zero/missing exclusion"
 tempfile aw_base
 local aw_html `"`aw_base'.html"'
 surveye using `"`questionnaire'"' [aw=wmedian], ///
@@ -107,7 +107,7 @@ assert r(sample_N) == 2
 assert r(N) == 2
 assert r(weighted) == 1
 
-display as text "[7/18] native probability weights"
+display as text "[7/19] native probability weights"
 tempfile pw_base
 local pw_html `"`pw_base'.html"'
 surveye using `"`questionnaire'"' [pw=pop], ///
@@ -116,7 +116,7 @@ assert r(sample_N) == 3
 assert r(N) == 3
 assert r(weighted) == 1
 
-display as text "[8/18] native frequency weights"
+display as text "[8/19] native frequency weights"
 tempfile fw_base
 local fw_html `"`fw_base'.html"'
 surveye using `"`questionnaire'"' [fw=freq], ///
@@ -125,7 +125,7 @@ assert r(sample_N) == 2
 assert r(N) == 2
 assert r(weighted) == 1
 
-display as text "[9/18] native importance weights"
+display as text "[9/19] native importance weights"
 tempfile iw_base
 local iw_html `"`iw_base'.html"'
 surveye using `"`questionnaire'"' [iw=importance], ///
@@ -134,7 +134,7 @@ assert r(sample_N) == 2
 assert r(N) == 2
 assert r(weighted) == 1
 
-display as text "[10/18] negative weights are rejected"
+display as text "[10/19] negative weights are rejected"
 replace wmedian = -1 in 2
 tempfile negative_base
 local negative_html `"`negative_base'.html"'
@@ -143,7 +143,7 @@ capture noisily surveye using `"`questionnaire'"' [aw=wmedian], ///
 assert _rc == 402
 replace wmedian = 2 in 2
 
-display as text "[11/18] fractional frequency weights are rejected"
+display as text "[11/19] fractional frequency weights are rejected"
 replace freq = 1.5 in 2
 tempfile fractional_base
 local fractional_html `"`fractional_base'.html"'
@@ -152,14 +152,14 @@ capture noisily surveye using `"`questionnaire'"' [fw=freq], ///
 assert _rc == 401
 replace freq = 2 in 2
 
-display as text "[12/18] all-zero weights leave no analysis sample"
+display as text "[12/19] all-zero weights leave no analysis sample"
 tempfile zero_base
 local zero_html `"`zero_base'.html"'
 capture noisily surveye using `"`questionnaire'"' [pw=allzero], ///
     saving(`"`zero_html'"') questions("services_used") replace
 assert _rc == 2000
 
-display as text "[13/18] showempty with no matching response columns"
+display as text "[13/19] showempty with no matching response columns"
 keep case_id
 tempfile empty_base
 local empty_html `"`empty_base'.html"'
@@ -168,7 +168,7 @@ surveye using `"`questionnaire'"', ///
 assert r(sample_N) == 4
 assert r(N) == 4
 
-display as text "[14/18] explicit build, Unicode title, and RTL options"
+display as text "[14/19] explicit build, Unicode title, and RTL options"
 import delimited using `"`datafile'"', clear varnames(1)
 generate double demo = case_id
 local special = "Cost " + char(36) + " and " + char(96) + ///
@@ -182,7 +182,7 @@ surveye build demo using `"`questionnaire'"', ///
 assert r(N) == 4
 mata: assert(st_global("r(title)") == st_local("special"))
 
-display as text "[15/18] custom variable label, section placement, and chart override"
+display as text "[15/19] custom variable label, section placement, and chart override"
 label variable demo "Field quality score"
 tempfile custom_base
 local custom_html `"`custom_base'.html"'
@@ -194,7 +194,7 @@ assert r(N) == 4
 assert r(k_charted) == 2
 confirm file `"`custom_html'"'
 
-display as text "[16/18] custom numeric value-label definition is preserved"
+display as text "[16/19] custom numeric value-label definition is preserved"
 generate byte quality_flag = mod(case_id, 3) + 1
 label define _surveye_yesno 1 "Approved" 2 "Rejected" 3 "Needs review"
 label values quality_flag _surveye_yesno
@@ -208,12 +208,32 @@ assert r(N) == 4
 assert r(k_charted) == 2
 confirm file `"`labeled_html'"'
 
-display as text "[17/18] existing output is protected without replace"
+display as text "[17/19] USD, weight-toggle, and summary-table options"
+generate str8 stratum = cond(case_id <= 2, "CBD", "Other")
+generate double sales = 50000 + case_id * 10000
+generate byte banked = mod(case_id, 2)
+label variable stratum "Stratum"
+label variable sales "Annual sales"
+label variable banked "Has a bank account"
+tempfile profile_base
+local profile_html `"`profile_base'.html"'
+surveye using `"`questionnaire'"' [aw=demo], ///
+    saving(`"`profile_html'"') questions("services_used") ///
+    usdvars(sales) usdrate(300) currency("LKR") ///
+    tableby(stratum) tablevars(sales banked) ///
+    tablestats("median|share:1") tablelabels("Median sales|Banked") ///
+    tabletitle("Stratum profile") tabletotal("All locations") ///
+    tableweightlabel("Estimated firms") replace
+assert r(success) == 1
+assert r(weighted) == 1
+confirm file `"`profile_html'"'
+
+display as text "[18/19] existing output is protected without replace"
 capture noisily surveye build demo using `"`questionnaire'"', ///
     saving(`"`build_html'"')
 assert _rc == 602
 
-display as text "[18/18] reported Sri Lanka GPS invocation parses"
+display as text "[19/19] reported Sri Lanka GPS invocation parses"
 generate double gps__Latitude = 6.9271
 generate double gps__Longitude = 79.8612
 generate byte lf_responsive = 1

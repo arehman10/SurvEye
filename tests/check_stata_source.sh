@@ -98,7 +98,7 @@ if ! grep -Eq '^[[:space:]]*capture[[:space:]]+noisily[[:space:]]+javacall[[:spa
   exit 1
 fi
 
-if ! grep -Fq 'local jarname "surveye_2_1_2.jar"' "$ADO" ||
+if ! grep -Fq 'local jarname "surveye_2_1_3.jar"' "$ADO" ||
    ! grep -Fq 'jars(`jarname'"'"')' "$ADO"; then
   echo "FAIL: javacall must use the release-specific ado-path JAR" >&2
   exit 1
@@ -108,6 +108,13 @@ if ! grep -Fq 'CUSTOMVars(varlist) ADDToSections(string)' "$ADO" ||
    ! grep -Fq 'BASEMap(string)' "$ADO" ||
    [ "$(grep -Fc 'CI LEVel(numlist min=1 max=1)' "$ADO" || true)" -ne 2 ]; then
   echo "FAIL: custom-variable, basemap, or confidence-interval syntax is missing" >&2
+  exit 1
+fi
+
+if ! grep -Fq 'USDVars(varlist) USDRate(numlist min=1 max=1)' "$ADO" ||
+   ! grep -Fq 'TABLEBy(varname) TABLEVars(varlist)' "$ADO" ||
+   ! grep -Fq 'TABLESTats(string asis) TABLELAbels(string asis)' "$ADO"; then
+  echo "FAIL: USD-toggle or summary-table syntax is missing" >&2
   exit 1
 fi
 
@@ -149,12 +156,18 @@ if [ "$(grep -Fc 'level() requires ci' "$ADO" || true)" -ne 2 ]; then
   exit 1
 fi
 
-for key in customvars addtosections basemap showci cilevel; do
+for key in customvars addtosections basemap showci cilevel usdvars usdrate currency tableby tablevars tablestats tablelabels tabletitle tablesubtitle tabletotal tableweightlabel; do
   if ! grep -Eq "_surveye_cfgline .* ${key}[[:space:]]" "$ADO"; then
     echo "FAIL: the ado does not pass ${key} to the Java engine" >&2
     exit 1
   fi
 done
+
+if ! grep -Eq 'local exportvars .*usdvars.*tableby.*tablevars.*weightvar' "$ADO" ||
+   ! grep -Eq 'local metadatavars .*usdvars.*tableby.*tablevars' "$ADO"; then
+  echo "FAIL: USD and summary-table variables must be exported with Stata metadata" >&2
+  exit 1
+fi
 
 if ! grep -Eq 'local metadatavars .*customvars.*filters.*highlights.*mapby' "$ADO" ||
    ! grep -Fq 'foreach metaselected of local selectedvars' "$ADO" ||

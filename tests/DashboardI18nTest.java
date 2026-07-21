@@ -59,13 +59,29 @@ public final class DashboardI18nTest {
                         && "فلٹرز چھپائیں".equals(DashboardI18n.text("urdu", "hideFilters"))
                         && "فعال فلٹرز".equals(DashboardI18n.text("urdu", "activeFilters")),
                 "Urdu filter-disclosure strings are incomplete.");
-        check(!"weightedOutlierMass".equals(DashboardI18n.text("arabic", "weightedOutlierMass"))
-                        && !"weightedOutlierShare".equals(DashboardI18n.text("urdu", "weightedOutlierShare")),
-                "Weighted outlier statistics are missing localized labels.");
+        check("تقديرات غير مرجّحة".equals(DashboardI18n.text("arabic", "unweightedEstimates"))
+                        && "العملة المحلية".equals(DashboardI18n.text("arabic", "localCurrency"))
+                        && "جدول ملخص".equals(DashboardI18n.text("arabic", "summaryTable"))
+                        && "حجم العينة".equals(DashboardI18n.text("arabic", "sampleN"))
+                        && "المجموع المرجّح".equals(DashboardI18n.text("arabic", "weightedTotal"))
+                        && "جميع المقابلات بعد التصفية".equals(DashboardI18n.text("arabic", "allFilteredInterviews"))
+                        && "المتوسط + 3 انحرافات معيارية".equals(DashboardI18n.text("arabic", "meanPlusThreeSd")),
+                "Arabic estimate-toggle, profile-table, or three-SD strings are incomplete.");
+        check("غیر وزنی تخمینے".equals(DashboardI18n.text("urdu", "unweightedEstimates"))
+                        && "مقامی کرنسی".equals(DashboardI18n.text("urdu", "localCurrency"))
+                        && "خلاصہ جدول".equals(DashboardI18n.text("urdu", "summaryTable"))
+                        && "نمونے کی تعداد".equals(DashboardI18n.text("urdu", "sampleN"))
+                        && "وزنی مجموعہ".equals(DashboardI18n.text("urdu", "weightedTotal"))
+                        && "تمام فلٹر شدہ انٹرویوز".equals(DashboardI18n.text("urdu", "allFilteredInterviews"))
+                        && "اوسط + 3 معیاری انحراف".equals(DashboardI18n.text("urdu", "meanPlusThreeSd")),
+                "Urdu estimate-toggle, profile-table, or three-SD strings are incomplete.");
         check(!"integerValueBins".equals(DashboardI18n.text("arabic", "integerValueBins"))
-                        && !"lowOutliers".equals(DashboardI18n.text("urdu", "lowOutliers"))
-                        && !"aboveDisplayRange".equals(DashboardI18n.text("arabic", "aboveDisplayRange")),
+                        && !"integerValueBins".equals(DashboardI18n.text("urdu", "integerValueBins")),
                 "Smart integer-distribution labels are missing Arabic or Urdu translations.");
+        check("tukeyOutliers".equals(DashboardI18n.text("english", "tukeyOutliers"))
+                        && "weightedOutlierMass".equals(DashboardI18n.text("arabic", "weightedOutlierMass"))
+                        && "valueWhisker".equals(DashboardI18n.text("urdu", "valueWhisker")),
+                "Retired Tukey/outlier translation keys should not remain in the runtime dictionary.");
         System.out.println("PASS dashboard UI language and direction resolution");
     }
 

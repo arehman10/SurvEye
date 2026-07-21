@@ -5,7 +5,7 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 FIXTURES=${1:-"$ROOT/tests/fixtures"}
 BUILD=$(mktemp -d "${TMPDIR:-/tmp}/surveye-engine.XXXXXX")
 trap 'rm -rf "$BUILD"' EXIT HUP INT TERM
-ENGINE_JAR="$ROOT/surveye_2_1_2.jar"
+ENGINE_JAR="$ROOT/surveye_2_1_3.jar"
 CLI_JAR="$ROOT/surveye.jar"
 
 if [ ! -f "$ENGINE_JAR" ] || [ ! -f "$CLI_JAR" ]; then
@@ -29,6 +29,7 @@ java -m jdk.compiler/com.sun.tools.javac.Main --release 8 \
   "$ROOT/tests/StataBridgeLinkageTest.java" \
   "$ROOT/tests/DashboardI18nTest.java" \
   "$ROOT/tests/WeightContractTest.java" \
+  "$ROOT/tests/TableCurrencyContractTest.java" \
   "$ROOT/tests/DateFormatMetadataContractTest.java" \
   "$ROOT/tests/CompletionMissingContractTest.java" \
   "$ROOT/tests/MapFilterLocalizationContractTest.java" \
@@ -39,6 +40,7 @@ java -m jdk.compiler/com.sun.tools.javac.Main --release 8 \
 java -cp "$BUILD:$ENGINE_JAR" StataEntryPointSmokeTest "$ROOT" "$FIXTURES"
 java -cp "$BUILD:$ENGINE_JAR" DashboardI18nTest
 java -cp "$BUILD:$ENGINE_JAR" WeightContractTest "$ROOT"
+java -cp "$BUILD:$ENGINE_JAR" TableCurrencyContractTest "$ROOT"
 java -cp "$BUILD:$ENGINE_JAR" DateFormatMetadataContractTest "$ROOT"
 java -cp "$BUILD:$ENGINE_JAR" CompletionMissingContractTest "$ROOT"
 java -cp "$BUILD:$ENGINE_JAR" MapFilterLocalizationContractTest "$ROOT"

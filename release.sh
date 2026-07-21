@@ -4,7 +4,7 @@ set -euo pipefail
 # Build clean source and SSC-ready archives without copying retired artifacts
 # that may still exist in a developer's working directory.
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-VERSION="2.1.2"
+VERSION="2.1.3"
 OUTPUT="${1:-$ROOT/../release}"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/surveye-release.XXXXXX")"
 SOURCE_NAME="surveye-$VERSION"
@@ -37,7 +37,7 @@ rsync -a \
 
 # Keep exactly the current release-specific JAR even when an older versioned
 # JAR remains in a developer's working tree for local compatibility testing.
-cp -p "$ROOT/surveye_2_1_2.jar" "$WORK/$SOURCE_NAME/"
+cp -p "$ROOT/surveye_2_1_3.jar" "$WORK/$SOURCE_NAME/"
 
 # GitHub accepts the same clean source tree, but the upload archive must be
 # flat so README.md, stata.toc, and surveye.pkg land at the repository root.
@@ -79,7 +79,7 @@ if unzip -Z1 "$WORK/$SSC_NAME.zip" | grep -Eiq '(^|/)(suso_dashboard|surveydash)
 fi
 
 for required in README.md stata.toc surveye.pkg surveye.ado surveye.sthlp \
-  surveye.jar surveye_2_1_2.jar example.do LICENSE \
+  surveye.jar surveye_2_1_3.jar example.do LICENSE \
   THIRDPARTY-LICENSES.md CHANGELOG.md; do
   if ! unzip -Z1 "$WORK/$GITHUB_NAME.zip" | grep -Fxq "$required"; then
     echo "FAIL: GitHub archive is missing root file $required" >&2

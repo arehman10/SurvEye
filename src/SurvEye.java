@@ -16,7 +16,7 @@ import java.util.Map;
 
 /** Entry point for the Survey Solutions dashboard engine and Stata wrapper. */
 public final class SurvEye {
-    public static final String VERSION = "2.1.2";
+    public static final String VERSION = "2.1.3";
 
     private SurvEye() {}
 
@@ -224,6 +224,25 @@ public final class SurvEye {
         }
         if (blank(config.weight) != blank(config.weightType)) {
             throw new IllegalArgumentException("weight and weighttype must be specified together.");
+        }
+        if (blank(config.usdVariables) != Double.isNaN(config.usdRate)) {
+            throw new IllegalArgumentException("usdvars and usdrate must be specified together.");
+        }
+        if (!Double.isNaN(config.usdRate) && !(config.usdRate > 0.0)) {
+            throw new IllegalArgumentException("usdrate must be greater than zero.");
+        }
+        if (config.currencySpecified && blank(config.usdVariables)) {
+            throw new IllegalArgumentException("currency requires usdvars and usdrate.");
+        }
+        boolean hasTableBy = !blank(config.tableBy);
+        boolean hasTableVariables = !blank(config.tableVariables);
+        if (hasTableBy != hasTableVariables) {
+            throw new IllegalArgumentException("tableby and tablevars must be specified together.");
+        }
+        if (!hasTableBy && (!blank(config.tableStats) || !blank(config.tableLabels)
+                || config.tableTitleSpecified || config.tableSubtitleSpecified
+                || config.tableTotalSpecified || config.tableWeightLabelSpecified)) {
+            throw new IllegalArgumentException("Table options require tableby and tablevars.");
         }
         if (!(config.ciLevel > 50.0 && config.ciLevel < 100.0)) {
             throw new IllegalArgumentException("level() must be greater than 50 and less than 100.");
@@ -453,6 +472,17 @@ public final class SurvEye {
         else if (key.equals("maptitle")) c.mapTitle = value;
         else if (key.equals("weight") || key.equals("weightvar")) c.weight = value;
         else if (key.equals("weighttype")) c.weightType = value;
+        else if (key.equals("usdvars") || key.equals("usdvariables")) c.usdVariables = value;
+        else if (key.equals("usdrate") && !blank(value)) c.usdRate = number(value, "usdrate");
+        else if (key.equals("currency") && !blank(value)) { c.currency = value; c.currencySpecified = true; }
+        else if (key.equals("tableby")) c.tableBy = value;
+        else if (key.equals("tablevars") || key.equals("tablevariables")) c.tableVariables = value;
+        else if (key.equals("tablestats")) c.tableStats = value;
+        else if (key.equals("tablelabels")) c.tableLabels = value;
+        else if (key.equals("tabletitle") && !blank(value)) { c.tableTitle = value; c.tableTitleSpecified = true; }
+        else if (key.equals("tablesubtitle") && !blank(value)) { c.tableSubtitle = value; c.tableSubtitleSpecified = true; }
+        else if (key.equals("tabletotal") && !blank(value)) { c.tableTotal = value; c.tableTotalSpecified = true; }
+        else if (key.equals("tableweightlabel") && !blank(value)) { c.tableWeightLabel = value; c.tableWeightLabelSpecified = true; }
         else if (key.equals("showci") || key.equals("ci")) c.showCI = bool(value);
         else if (key.equals("cilevel") || key.equals("level")) c.ciLevel = number(value, "level");
         else if (key.equals("logo")) c.logo = value;

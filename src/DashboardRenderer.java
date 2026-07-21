@@ -45,7 +45,8 @@ final class DashboardRenderer {
                 .append("<header class=\"topbar\"><div class=\"wrap\"><div class=\"product\"><small>")
                 .append(Util.html(t(model, "questionnaire"))).append("</small>")
                 .append(Util.html(model.product)).append("</div><div class=\"top-spacer\"></div>")
-                .append("<div class=\"badge").append(model.simulated ? " sim" : "").append("\">")
+                .append("<div class=\"badge").append(model.simulated ? " sim" : "").append("\"")
+                .append(model.weighted && !model.simulated ? " data-weight-mode-label" : "").append(">")
                 .append(Util.html(model.simulated ? t(model, "simulatedBadge")
                         : model.weighted ? t(model, "weightedBadge") : t(model, "fieldworkBadge")))
                 .append("</div></div></header>\n")
@@ -62,6 +63,7 @@ final class DashboardRenderer {
         if (!model.highlights.isEmpty()) html.append(highlights(model));
         if (!model.keyMessages.isEmpty()) html.append(messages(model));
         if (!model.warnings.isEmpty()) html.append(warnings(model));
+        if (model.summaryTable != null) html.append(summaryTable(model));
         if (model.mapGeometry != null) html.append(map(model));
         html.append("<div id=\"no-results\" class=\"no-results\"><b>").append(Util.html(t(model, "noSearchResults")))
                 .append("</b><br>").append(Util.html(t(model, "searchHint"))).append("</div>\n");
@@ -121,8 +123,21 @@ final class DashboardRenderer {
                 .append("<span class=\"controls-toggle-label\">").append(Util.html(t(model, "showFilters")))
                 .append("</span><span class=\"controls-chevron\" aria-hidden=\"true\">⌄</span></button>")
                 .append("<span class=\"active-filter-count\" id=\"active-filter-count\" data-active-count=\"0\" role=\"status\" aria-live=\"polite\" hidden><b>0</b> <span data-active-filter-label>")
-                .append(Util.html(t(model, "activeFilters"))).append("</span></span>")
-                .append("<div class=\"controls-summary\"><button type=\"button\" class=\"reset\" id=\"reset\" disabled>")
+                .append(Util.html(t(model, "activeFilters"))).append("</span></span>");
+        if (model.weighted || model.usdEnabled) {
+            out.append("<div class=\"estimate-toggles\" role=\"group\" aria-label=\"")
+                    .append(Util.html(t(model, "displaySettings"))).append("\">");
+            if (model.weighted) {
+                out.append("<label class=\"mode-toggle\" for=\"weight-toggle\"><input id=\"weight-toggle\" type=\"checkbox\" checked>")
+                        .append("<span>").append(Util.html(t(model, "weightedEstimates"))).append("</span></label>");
+            }
+            if (model.usdEnabled) {
+                out.append("<label class=\"mode-toggle\" for=\"usd-toggle\"><input id=\"usd-toggle\" type=\"checkbox\">")
+                        .append("<span>").append(Util.html(t(model, "valuesInUsd"))).append("</span></label>");
+            }
+            out.append("</div>");
+        }
+        out.append("<div class=\"controls-summary\"><button type=\"button\" class=\"reset\" id=\"reset\" disabled>")
                 .append(Util.html(t(model, "resetAll"))).append("</button>")
                 .append("<span class=\"matched\" role=\"status\" aria-live=\"polite\"><b data-matched>0</b> ")
                 .append(Util.html(t(model, "interviewsShown"))).append("</span></div></div>")
@@ -140,7 +155,27 @@ final class DashboardRenderer {
             }
             out.append("</span></div>");
         }
+        out.append("</div>");
         out.append("</div></div></div></section>\n");
+        return out.toString();
+    }
+
+    private static String summaryTable(DashboardModel model) {
+        DashboardTable table = model.summaryTable;
+        StringBuilder out = new StringBuilder("<section class=\"profile-card\" id=\"summary-profile\" aria-labelledby=\"summary-profile-title\">")
+                .append("<div class=\"profile-head\"><div><h2 id=\"summary-profile-title\">")
+                .append(Util.html(table.title)).append("</h2>");
+        if (!blank(table.subtitle)) out.append("<p>").append(Util.html(table.subtitle)).append("</p>");
+        out.append("</div><span class=\"profile-status\" data-profile-status role=\"status\" aria-live=\"polite\"></span></div>")
+                .append("<div class=\"profile-table-scroll\" role=\"region\" tabindex=\"0\" aria-label=\"")
+                .append(Util.html(table.title)).append("\"><table class=\"profile-table\" id=\"summary-profile-table\"><thead><tr>")
+                .append("<th scope=\"col\" data-table-by-heading>").append(Util.html(table.byLabel)).append("</th>");
+        for (int i = 0; i < table.variables.size(); i++) {
+            out.append("<th scope=\"col\" data-table-variable=\"")
+                    .append(Util.html(table.variables.get(i))).append("\">")
+                    .append(Util.html(table.labels.get(i))).append("</th>");
+        }
+        out.append("</tr></thead><tbody id=\"summary-profile-body\" aria-live=\"polite\"></tbody></table></div></section>\n");
         return out.toString();
     }
 
@@ -295,18 +330,20 @@ final class DashboardRenderer {
 
     private static String footer(DashboardModel model) {
         StringBuilder out = new StringBuilder("<footer class=\"footer\"><div><b>").append(Util.html(model.product)).append("</b><br>")
+                .append("<span").append(model.weighted ? " data-weight-footer-label" : "").append(">")
                 .append(Util.html(model.weighted ? t(model, "footerWeighted") : t(model, "footerUnweighted")))
-                .append(' ').append(Util.html(t(model, "footerSpecial")));
+                .append("</span> ").append(Util.html(t(model, "footerSpecial")));
         if (model.showCI) {
             out.append(' ').append(Util.html(t(model, "footerCI").replace("{level}", formatLevel(model.ciLevel))));
             if (model.weighted && !"fweight".equalsIgnoreCase(model.weightType)) {
-                out.append(' ').append(Util.html(t(model, "footerWeightedCI")));
+                out.append(" <span data-weighted-ci-note>")
+                        .append(Util.html(t(model, "footerWeightedCI"))).append("</span>");
             }
         }
         if (!blank(model.note)) out.append("<br><b>").append(Util.html(t(model, "note"))).append(":</b> ").append(Util.html(model.note));
         if (!blank(model.source)) out.append("<br><b>").append(Util.html(t(model, "source"))).append(":</b> ").append(Util.html(model.source));
         out.append("</div><div class=\"footer-right\">").append(Util.html(t(model, "generated"))).append(' ')
-                .append(Util.html(Util.utcTimestamp())).append("<br>SurvEye 2.1.2 · ")
+                .append(Util.html(Util.utcTimestamp())).append("<br>SurvEye 2.1.3 · ")
                 .append(Util.html(model.mapGeometry == null ? t(model, "offlineHtml") : t(model, "onlineMapHtml")))
                 .append(model.simulated ? "<br><b>" + Util.html(t(model, "simulatedWarning")) + "</b>" : "")
                 .append("</div></footer>\n");
@@ -338,6 +375,24 @@ final class DashboardRenderer {
         Map<String, Object> output = new LinkedHashMap<String, Object>();
         output.put("weighted", model.weighted); output.put("simulated", model.simulated);
         output.put("weightType", model.weightType); output.put("showCI", model.showCI); output.put("ciLevel", model.ciLevel);
+        output.put("weightToggle", model.weighted);
+        if (model.usdEnabled) {
+            Map<String, Object> usd = new LinkedHashMap<String, Object>();
+            usd.put("enabled", true); usd.put("variables", model.usdVariables);
+            usd.put("rate", model.usdRate); usd.put("currency", model.currency);
+            output.put("usd", usd);
+        } else output.put("usd", null);
+        if (model.summaryTable != null) {
+            DashboardTable definition = model.summaryTable;
+            Map<String, Object> table = new LinkedHashMap<String, Object>();
+            table.put("enabled", true); table.put("by", definition.by); table.put("byLabel", definition.byLabel);
+            table.put("variables", definition.variables); table.put("stats", definition.statistics);
+            table.put("labels", definition.labels); table.put("title", definition.title);
+            table.put("subtitle", definition.subtitle); table.put("totalLabel", definition.totalLabel);
+            table.put("weightLabel", definition.weightLabel);
+            table.put("ignoreOwnFilter", true);
+            output.put("table", table);
+        } else output.put("table", null);
         output.put("maxCategories", model.maxCategories);
         output.put("density", model.density);
         output.put("uiLanguage", model.uiLanguage);

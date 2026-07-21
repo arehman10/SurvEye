@@ -1,4 +1,4 @@
-*! version 2.1.2 20jul2026
+*! version 2.1.3 21jul2026
 
 program define surveye, rclass
     version 16.0
@@ -52,6 +52,12 @@ program define _surveye_main, rclass
           DISCrete(varlist) CONTinuous(varlist) NOAUTODISCrete      ///
           COMPARE(varlist) COMPAREBy(varname)                        ///
           COMPARETitle(string) COMPARELevels(string)                 ///
+          USDVars(varlist) USDRate(numlist min=1 max=1)              ///
+          CURRENCY(string)                                          ///
+          TABLEBy(varname) TABLEVars(varlist)                        ///
+          TABLESTats(string asis) TABLELAbels(string asis)          ///
+          TABLETItle(string) TABLESUbtitle(string)                   ///
+          TABLETOtal(string) TABLEWeightLabel(string)                ///
           BARs(varlist) DONUTs(varlist) HISTograms(varlist)          ///
           MAXCategories(integer 12) MAXPanels(integer 100)          ///
           MISSingcodes(numlist missingokay)                         ///
@@ -342,6 +348,8 @@ program define _surveye_main, rclass
     local discrete : list uniq discrete
     local continuous : list uniq continuous
     local compare : list uniq compare
+    local usdvars : list uniq usdvars
+    local tablevars : list uniq tablevars
 
     local overlap : list groupedvars & ungroupvars
     if `"`overlap'"' != "" {
@@ -402,6 +410,149 @@ program define _surveye_main, rclass
             display as error "surveye: compareby() may not also be one of the compare() variables"
             exit 198
         }
+    }
+
+    // ---------- Optional weight/USD switches and summary profile table ----------
+    // usdrate() is the number of local-currency units in one US dollar.  The
+    // dashboard keeps the original values in DATA and converts only at render
+    // time, so switching currencies never changes the analysis sample.
+    if `"`usdvars'"' != "" & `"`usdrate'"' == "" {
+        display as error "surveye: usdvars() requires usdrate()"
+        exit 198
+    }
+    if `"`usdvars'"' == "" & `"`usdrate'"' != "" {
+        display as error "surveye: usdrate() requires usdvars()"
+        exit 198
+    }
+    if `"`usdvars'"' == "" & `"`currency'"' != "" {
+        display as error "surveye: currency() requires usdvars()"
+        exit 198
+    }
+    if `"`usdrate'"' != "" {
+        local usdratevalue : word 1 of `usdrate'
+        if missing(real(`"`usdratevalue'"')) | real(`"`usdratevalue'"') <= 0 {
+            display as error "surveye: usdrate() must be greater than zero"
+            exit 198
+        }
+    }
+    foreach variable of local usdvars {
+        capture confirm numeric variable `variable'
+        if _rc {
+            display as error `"surveye: usdvars(`variable') requires a numeric variable"'
+            exit 109
+        }
+        local variableformat : format `variable'
+        if regexm(lower(strtrim(`"`variableformat'"')), "^%t[bcdwmqhy]") {
+            display as error `"surveye: date/time variable `variable' may not be specified in usdvars()"'
+            exit 198
+        }
+    }
+
+    local hastable = (`"`tableby'"' != "" | `"`tablevars'"' != "")
+    if (`"`tableby'"' == "") != (`"`tablevars'"' == "") {
+        display as error "surveye: tableby() and tablevars() must be specified together"
+        exit 198
+    }
+    if !`hastable' & (`"`macval(tablestats)'"' != "" | ///
+        `"`macval(tablelabels)'"' != "" | `"`tabletitle'"' != "" | ///
+        `"`tablesubtitle'"' != "" | `"`tabletotal'"' != "" | ///
+        `"`tableweightlabel'"' != "") {
+        display as error "surveye: table options require tableby() and tablevars()"
+        exit 198
+    }
+    if `hastable' {
+        local overlap : list tablevars & tableby
+        if `"`overlap'"' != "" {
+            display as error "surveye: tableby() may not also appear in tablevars()"
+            exit 198
+        }
+
+        // string asis preserves Stata's syntax quotes.  Remove one matching
+        // outer pair before validating the pipe-delimited entries.
+        local tablestatsclean = strtrim(`"`macval(tablestats)'"')
+        if strlen(`"`macval(tablestatsclean)'"') >= 2 & ///
+            substr(`"`macval(tablestatsclean)'"', 1, 1) == char(34) & ///
+            substr(`"`macval(tablestatsclean)'"', strlen(`"`macval(tablestatsclean)'"'), 1) == char(34) {
+            local tablestatsclean = substr(`"`macval(tablestatsclean)'"', 2, strlen(`"`macval(tablestatsclean)'"') - 2)
+        }
+        local tablelabelsclean = strtrim(`"`macval(tablelabels)'"')
+        if strlen(`"`macval(tablelabelsclean)'"') >= 2 & ///
+            substr(`"`macval(tablelabelsclean)'"', 1, 1) == char(34) & ///
+            substr(`"`macval(tablelabelsclean)'"', strlen(`"`macval(tablelabelsclean)'"'), 1) == char(34) {
+            local tablelabelsclean = substr(`"`macval(tablelabelsclean)'"', 2, strlen(`"`macval(tablelabelsclean)'"') - 2)
+        }
+
+        local ntablevars : word count `tablevars'
+        local normalizedstats ""
+        local statrest `"`macval(tablestatsclean)'"'
+        local statcount = 0
+        while strtrim(`"`macval(statrest)'"') != "" {
+            local pipe = strpos(`"`macval(statrest)'"', "|")
+            if `pipe' > 0 {
+                local onestat = strtrim(substr(`"`macval(statrest)'"', 1, `pipe' - 1))
+                local statrest = substr(`"`macval(statrest)'"', `pipe' + 1, .)
+            }
+            else {
+                local onestat = strtrim(`"`macval(statrest)'"')
+                local statrest ""
+            }
+            if `"`macval(onestat)'"' == "" {
+                display as error "surveye: tablestats() may not contain an empty entry"
+                exit 198
+            }
+            local statkey = lower(`"`macval(onestat)'"')
+            local validstat = inlist(`"`statkey'"', "auto", "share", "mean", "median", "sum")
+            if !`validstat' & regexm(`"`statkey'"', "^share:.+$") local validstat = 1
+            if !`validstat' {
+                display as error `"surveye: invalid tablestats() entry: `macval(onestat)'"'
+                display as error "Use auto, share, share:<code>, mean, median, or sum."
+                exit 198
+            }
+            local ++statcount
+            if `statcount' > `ntablevars' {
+                display as error "surveye: tablestats() must have one pipe-delimited entry per tablevars() variable"
+                exit 198
+            }
+            local statvariable : word `statcount' of `tablevars'
+            if inlist(`"`statkey'"', "mean", "median", "sum") {
+                capture confirm numeric variable `statvariable'
+                if _rc {
+                    display as error `"surveye: tablestats(`macval(onestat)') requires numeric variable `statvariable'"'
+                    exit 109
+                }
+            }
+            if `"`macval(normalizedstats)'"' == "" local normalizedstats `"`macval(onestat)'"'
+            else local normalizedstats `"`macval(normalizedstats)'|`macval(onestat)'"'
+        }
+        if `"`macval(tablestatsclean)'"' != "" & `statcount' != `ntablevars' {
+            display as error "surveye: tablestats() must have one pipe-delimited entry per tablevars() variable"
+            exit 198
+        }
+        local tablestats `"`macval(normalizedstats)'"'
+
+        local labelrest `"`macval(tablelabelsclean)'"'
+        local labelcount = 0
+        while strtrim(`"`macval(labelrest)'"') != "" {
+            local pipe = strpos(`"`macval(labelrest)'"', "|")
+            if `pipe' > 0 {
+                local onelabel = strtrim(substr(`"`macval(labelrest)'"', 1, `pipe' - 1))
+                local labelrest = substr(`"`macval(labelrest)'"', `pipe' + 1, .)
+            }
+            else {
+                local onelabel = strtrim(`"`macval(labelrest)'"')
+                local labelrest ""
+            }
+            if `"`macval(onelabel)'"' == "" {
+                display as error "surveye: tablelabels() may not contain an empty entry"
+                exit 198
+            }
+            local ++labelcount
+        }
+        if `"`macval(tablelabelsclean)'"' != "" & `labelcount' != `ntablevars' {
+            display as error "surveye: tablelabels() must have one pipe-delimited entry per tablevars() variable"
+            exit 198
+        }
+        local tablelabels `"`macval(tablelabelsclean)'"'
     }
 
     local overlap : list groupedvars & exclude
@@ -582,7 +733,7 @@ program define _surveye_main, rclass
         }
     }
 
-    local exportvars `"`exportvars' `customvars' `filters' `highlights' `latitude' `longitude' `mapby' `compare' `compareby' `weightvar'"'
+    local exportvars `"`exportvars' `customvars' `filters' `highlights' `latitude' `longitude' `mapby' `compare' `compareby' `usdvars' `tableby' `tablevars' `weightvar'"'
     local exportvars : list uniq exportvars
 
     if `"`exportvars'"' == "" {
@@ -645,6 +796,17 @@ program define _surveye_main, rclass
     _surveye_cfgline `cfg' compareby        `"`macval(compareby)'"'
     _surveye_cfgline `cfg' comparetitle     `"`macval(comparetitle)'"'
     _surveye_cfgline `cfg' comparelevels    `"`macval(comparelevels)'"'
+    _surveye_cfgline `cfg' usdvars          `"`macval(usdvars)'"'
+    _surveye_cfgline `cfg' usdrate          `"`macval(usdrate)'"'
+    _surveye_cfgline `cfg' currency         `"`macval(currency)'"'
+    _surveye_cfgline `cfg' tableby          `"`macval(tableby)'"'
+    _surveye_cfgline `cfg' tablevars        `"`macval(tablevars)'"'
+    _surveye_cfgline `cfg' tablestats       `"`macval(tablestats)'"'
+    _surveye_cfgline `cfg' tablelabels      `"`macval(tablelabels)'"'
+    _surveye_cfgline `cfg' tabletitle       `"`macval(tabletitle)'"'
+    _surveye_cfgline `cfg' tablesubtitle    `"`macval(tablesubtitle)'"'
+    _surveye_cfgline `cfg' tabletotal       `"`macval(tabletotal)'"'
+    _surveye_cfgline `cfg' tableweightlabel `"`macval(tableweightlabel)'"'
     _surveye_cfgline `cfg' bars             `"`macval(bars)'"'
     _surveye_cfgline `cfg' donuts           `"`macval(donuts)'"'
     _surveye_cfgline `cfg' histograms       `"`macval(histograms)'"'
@@ -684,7 +846,7 @@ program define _surveye_main, rclass
     // physical Stata column, so add only selected names that actually exist.
     // This lets data-only variables selected through questions() retain a
     // meaningful Stata label without breaking expanded multiselects.
-    local metadatavars `"`customvars' `filters' `highlights' `mapby' `compareby'"'
+    local metadatavars `"`customvars' `filters' `highlights' `mapby' `compareby' `usdvars' `tableby' `tablevars'"'
     foreach metaselected of local selectedvars {
         capture confirm variable `metaselected'
         if !_rc local metadatavars `"`metadatavars' `metaselected'"'
@@ -754,7 +916,7 @@ program define _surveye_main, rclass
     if missing(`outN') return scalar N = `sample_N'
     return scalar sample_N = `sample_N'
     return scalar weighted = `weighted'
-    return local package_version "2.1.2"
+    return local package_version "2.1.3"
 end
 
 
@@ -852,7 +1014,7 @@ program define _surveye_describe, rclass
     _surveye_read_status using `"`statusfile'"'
     return add
     if `"`macval(outquestionnaire)'"' == "" return local questionnaire `"`macval(using)'"'
-    return local package_version "2.1.2"
+    return local package_version "2.1.3"
 end
 
 
@@ -1037,7 +1199,7 @@ program define _surveye_demo, rclass
         return local filename `"`macval(saving)'"'
     }
     if `"`macval(outquestionnaire)'"' == "" return local questionnaire `"`macval(using)'"'
-    return local package_version "2.1.2"
+    return local package_version "2.1.3"
 end
 
 
@@ -1108,7 +1270,7 @@ program define _surveye_invoke, rclass
     version 16.0
     args configfile statusfile diagnostics
 
-    local jarname "surveye_2_1_2.jar"
+    local jarname "surveye_2_1_3.jar"
     capture findfile `jarname'
     if _rc {
         display as error "`jarname' is not installed on the Stata ado-path"

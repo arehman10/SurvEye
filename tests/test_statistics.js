@@ -180,6 +180,42 @@ const scaledMean = stats.weightedMean(scaled);
 close(scaledMean, aMean, 1e-12, "aweight mean scale invariance");
 close(stats.weightedStd(scaled, scaledMean, 30), 4 / 3, 1e-12, "aweight SD scale invariance");
 
+// A supplied Stata weight is available at runtime but the dashboard toggle
+// can switch every descriptive calculation back to equal observation weights.
+stats.setWeightsEnabled(false);
+close(stats.weightedMean(sdPoints), 2, 1e-12, "runtime unweighted mean");
+if (stats.weightsActive()) throw new Error("weight toggle did not disable weighted estimates");
+stats.setWeightsEnabled(true);
+close(stats.weightedMean(sdPoints), 7 / 3, 1e-12, "runtime reweighted mean");
+if (!stats.weightsActive()) throw new Error("weight toggle did not restore weighted estimates");
+
+// USD conversion is opt-in, limited to the configured monetary variables,
+// and uses local-currency units per one US dollar.
+config.usd = { enabled: true, variables: ["sales"], rate: 300, currency: "LKR" };
+context.META.sales = { kind: "hist", nonnegative: true, labels: {}, special: [], missing: [] };
+stats.setUsdEnabled(false);
+equal(stats.numericValues("sales", [{ sales: 300, _w: 1 }])[0].value, 300, "local-currency value");
+equal(stats.currencyCode("sales"), "LKR", "local-currency code");
+stats.setUsdEnabled(true);
+equal(stats.numericValues("sales", [{ sales: 300, _w: 1 }])[0].value, 1, "USD-converted value");
+equal(stats.currencyCode("sales"), "USD", "USD currency code");
+equal(stats.numericValues("employees", [{ employees: 300, _w: 1 }])[0].value, 300, "noncurrency value unchanged");
+stats.setUsdEnabled(false);
+
+// Explicit share labels preserve case (share:Male) and the profile table
+// ignores only its own grouping filter when building comparison rows.
+context.META.gender = { kind: "bar", labels: { "1": "Male", "2": "Female" }, order: ["1", "2"], special: [], missing: [], affirmative: [] };
+config.weighted = false;
+stats.setWeightsEnabled(false);
+equal(stats.profileMetric("gender", "share:Male", [{ gender: 1 }, { gender: 1 }, { gender: 2 }]).display, "66.7%", "profile share label lookup");
+context.DATA.splice(0, context.DATA.length, { stratum: "A", owner: "1" }, { stratum: "B", owner: "1" }, { stratum: "B", owner: "2" });
+stats.setFilters({ stratum: ["A"], owner: ["1"] });
+equal(stats.filteredRows("stratum").length, 2, "profile source ignores its own grouping filter");
+equal(stats.filteredRows(null).length, 1, "ordinary source honors every filter");
+stats.setFilters({});
+config.weighted = true;
+stats.setWeightsEnabled(true);
+
 const category = { n: 2, total: 3, sumW2: 5 };
 close(stats.effectiveN(category), 9 / 5, 1e-12, "Kish effective n");
 const aInterval = stats.confidenceInterval(category, 2);
@@ -252,6 +288,71 @@ if (optedInItems.some((item) => item.interval)) {
 config.weighted = false;
 const unweighted = [{ value: 1, w: 1 }, { value: 3, w: 1 }];
 close(stats.weightedStd(unweighted, 2, 2), Math.sqrt(2), 1e-12, "unweighted sample SD");
+
+// Stats panes are not chart canvases and stay visible while their distribution
+// canvas is hidden.  Their summaries must therefore refresh directly from the
+// filtered rows instead of waiting for lazy chart rendering.
+function numericRefreshCanvas(variable, kind = "hist") {
+  return { getAttribute: (name) => ({ "data-variable": variable, "data-kind": kind }[name] ?? null) };
+}
+function statsNode(tagName) {
+  const node = { tagName, children: [], attributes: {} };
+  let ownText = "";
+  Object.defineProperty(node, "textContent", {
+    get: () => ownText,
+    set: (value) => { ownText = String(value); if (value === "") node.children.length = 0; },
+  });
+  node.appendChild = (child) => { node.children.push(child); return child; };
+  node.setAttribute = (name, value) => { node.attributes[name] = String(value); };
+  return node;
+}
+context.META.filtered_numeric = { kind: "hist", missing: ["-9"], special: ["-9"] };
+const filteredStatsRoot = statsNode("div");
+documentStub.createElement = statsNode;
+documentStub.getElementById = (id) => id === "stats-filtered_numeric" ? filteredStatsRoot : null;
+let refreshed = stats.refreshNumericStats([
+  { filtered_numeric: 10 },
+  { filtered_numeric: 20 },
+  { filtered_numeric: -9 },
+], [numericRefreshCanvas("filtered_numeric")]);
+equal(refreshed.filtered_numeric.n, 2, "filtered Stats valid raw n");
+equal(refreshed.filtered_numeric.missing, 1, "filtered Stats missing/excluded");
+close(refreshed.filtered_numeric.mean, 15, 1e-12, "filtered Stats mean");
+let filteredStatsCells = filteredStatsRoot.children[0].children[0].children[0].children;
+equal(filteredStatsCells[1].textContent, "2", "visible filtered Stats valid raw n");
+equal(filteredStatsCells[3].textContent, "1", "visible filtered Stats missing/excluded");
+
+config.weighted = true;
+config.weightType = "aweight";
+refreshed = stats.refreshNumericStats([
+  { filtered_numeric: 10, _w: 1 },
+  { filtered_numeric: 20, _w: 3 },
+], [numericRefreshCanvas("filtered_numeric")]);
+equal(refreshed.filtered_numeric.n, 2, "weighted filtered Stats valid raw n");
+close(refreshed.filtered_numeric.mean, 17.5, 1e-12, "weighted filtered Stats mean");
+filteredStatsCells = filteredStatsRoot.children[0].children[0].children[0].children;
+equal(filteredStatsCells[1].textContent, "2", "visible weighted filtered Stats valid raw n");
+equal(filteredStatsCells[3].textContent, "0", "visible weighted filtered Stats missing/excluded");
+config.weighted = false;
+config.weightType = "";
+let statsPaneActive = true;
+const activeRefreshCanvas = numericRefreshCanvas("filtered_numeric");
+activeRefreshCanvas.closest = () => ({
+  querySelector: () => ({ classList: { contains: (name) => name === "is-active" && statsPaneActive } }),
+});
+documentStub.querySelectorAll = () => [activeRefreshCanvas];
+refreshed = stats.refreshNumericStats([{ filtered_numeric: 30 }]);
+equal(refreshed.filtered_numeric.n, 1, "active Stats pane refreshes after filtering");
+statsPaneActive = false;
+refreshed = stats.refreshNumericStats([{ filtered_numeric: 40 }]);
+equal(refreshed.filtered_numeric, undefined, "inactive Stats pane remains lazy");
+documentStub.getElementById = () => null;
+if (!source.includes("refreshNumericStats(source);")) {
+  throw new Error("filter overview updates are not wired to refresh numeric Stats panes");
+}
+if (!source.includes('target==="stats"&&canvas)refreshNumericStats(rows(),[canvas])')) {
+  throw new Error("opening a Stats tab is not wired to the current filtered rows");
+}
 
 // Expanded multiselects distinguish an answered all-zero row ([]) from an
 // unanswered row (null).  The empty array contributes to the respondent
@@ -335,6 +436,17 @@ config.map.groupLabels["__proto__"] = "Prototype group";
 equal(stats.groupLabel("__proto__"), "Prototype group", "reserved map group label");
 config.map = null;
 
+context.META.stratum = {
+  order: ["CBD", "Everything else", "Unobserved", "-9"],
+  labels: { CBD: "CBD", "Everything else": "Everything else", Unobserved: "Unobserved", "-9": "Don't know" },
+  special: ["-9"],
+  missing: [],
+};
+equal(stats.profileLevels("stratum", [
+  { stratum: "Everything else" }, { stratum: "CBD" }, { stratum: "New observed" }, { stratum: "-9" },
+]).join("|"), "CBD|Everything else|New observed",
+"profile table preserves configured order without adding unobserved or special rows");
+
 // Horizontal percent bars begin at the visual right edge in RTL, and their
 // custom end labels use mirrored outside/inside anchors.
 equal(stats.horizontalScale({ stacked: true }, false).reverse, false, "LTR horizontal scale");
@@ -351,10 +463,14 @@ placement = stats.barValuePlacement({ x: 5, base: 100 }, 5, { left: 0, right: 10
 equal(placement.inside, true, "RTL inside value label");
 equal(placement.textAlign, "left", "RTL inside value-label alignment");
 equal(placement.x, 10, "RTL inside value-label anchor");
-equal(stats.weightedOutlierShare({ classified: true, outlierWeight: 2, totalWeight: 8 }), 25,
-  "weighted Tukey outlier share");
-equal(stats.weightedOutlierShare({ classified: false, outlierWeight: 2, totalWeight: 8 }), null,
-  "unclassified weighted outlier share");
+equal(stats.meanPlusThreeSd({ mean: 10, sd: 2 }, 0, 20), 16,
+  "mean plus three SD guide within domain");
+equal(stats.meanPlusThreeSd({ mean: 10, sd: 0 }, 0, 20), null,
+  "three-SD guide suppressed for zero variation");
+equal(stats.meanPlusThreeSd({ mean: 10, sd: 2 }, 0, 16), null,
+  "three-SD guide suppressed at domain boundary");
+equal(stats.meanPlusThreeSd({ mean: 10, sd: 2 }, 0, 15), null,
+  "three-SD guide suppressed outside domain");
 
 if (!source.includes('renderer:state.leafletPointRenderer')
     || !source.includes('setAttribute("tabindex","0")')
@@ -465,14 +581,19 @@ const exactCountBars = compositeChart.data.datasets[0].data;
 equal(exactCountBars.map((point) => point.x).join("-"), "1-2-3-4-5-6-7-8-9-10-11",
   "discrete exact integer support with zero gap");
 equal(exactCountBars[6].y, 0, "discrete zero-frequency integer gap");
-equal(compositeChart.options.plugins.discreteMedianGuide.median, 5.5, "discrete median guide");
+const countGuide = compositeChart.options.plugins.threeSdGuide;
+equal(countGuide.mean, 5.9, "discrete three-SD guide uses current mean");
+equal(stats.meanPlusThreeSd(countGuide, countGuide.minimum, countGuide.maximum), null,
+  "discrete three-SD guide is omitted when outside the domain");
+equal(stats.numericStatistics(stats.numericValues("count", context.DATA), context.DATA.length).meanPlusThreeSd,
+  null, "Stats suppresses a three-SD value that has no matching chart guide");
 equal(exactCountBars.reduce((sum, point) => sum + point.raw, 0), 10,
   "exact discrete raw mass conservation");
 
 // Numeric display planning is independent of maxcategories(). A short count
 // support remains exact, while a wide integer support receives regular bins
-// on a linear axis. Tukey tail observations remain in the summary statistics
-// but cannot stretch the visible plotting domain into hundreds of empty bars.
+// on a linear axis. Every valid value remains represented in a regular bin;
+// a mean-plus-three-SD guide appears only when it is inside the plotted domain.
 function niceStep(value) {
   if (!(value > 0) || !Number.isFinite(value)) return false;
   const magnitude = 10 ** Math.floor(Math.log10(value));
@@ -503,43 +624,41 @@ const validAges = stats.numericValues("age", ageRows);
 equal(validAges.length, 64, "age negative special codes excluded");
 const ageStats = stats.numericStatistics(validAges, ageRows.length);
 equal(ageStats.max, 506, "age tail remains in summary statistics");
-equal(ageStats.outliers, 1, "age Tukey tail classification");
+if (!(ageStats.meanPlusThreeSd > ageStats.mean && ageStats.meanPlusThreeSd < ageStats.max)) {
+  throw new Error(`age three-SD threshold is not meaningful: ${ageStats.meanPlusThreeSd}`);
+}
 stats.buildDiscrete(compositeCanvas("age", "age"), "age");
 compositeChart = ChartStub.instances[ChartStub.instances.length - 1].config;
-const ageGuide = compositeChart.options.plugins.discreteMedianGuide;
+const ageGuide = compositeChart.options.plugins.threeSdGuide;
 const ageBars = compositeChart.data.datasets[0].data;
 equal(compositeChart.options.scales.x.type, "linear", "wide discrete age uses a numeric x scale");
-equal(ageGuide.highTail, 1, "age high tail is explicitly summarized");
-equal(ageGuide.lowTail, 0, "age low tail count");
-if (!(ageGuide.maximum < 506)) throw new Error(`age display maximum was stretched to ${ageGuide.maximum}`);
-if (ageBars.some((point) => point.x === 506)) throw new Error("age outlier was plotted inside the main distribution");
+close(stats.meanPlusThreeSd(ageGuide, ageGuide.minimum, ageGuide.maximum),
+  ageStats.meanPlusThreeSd, 1e-12, "age three-SD guide value");
+if (!(ageGuide.maximum >= 506)) throw new Error(`age display maximum omitted a valid value: ${ageGuide.maximum}`);
 if (ageBars.length > 40) throw new Error(`age distribution created ${ageBars.length} bars instead of smart bins`);
 if (!regularSpacing(ageBars.map((point) => point.x))) throw new Error("age bin centers are not evenly spaced");
-equal(ageBars.reduce((sum, point) => sum + point.raw, 0) + ageGuide.lowTail + ageGuide.highTail,
-  validAges.length, "age raw mass conservation across visible bins and tails");
-close(ageBars.reduce((sum, point) => sum + point.y, 0) + ageGuide.lowTail + ageGuide.highTail,
+equal(ageBars.reduce((sum, point) => sum + point.raw, 0),
+  validAges.length, "age raw mass conservation across all bins");
+close(ageBars.reduce((sum, point) => sum + point.y, 0),
   validAges.length, 1e-12, "age unweighted mass conservation");
 
 const agePlan = stats.discreteDistributionPlan(validAges, ageStats, true);
-equal(agePlan.highTail, 1, "age plan high tail");
 if (!(agePlan.binWidth > 1) || agePlan.bins.length > 40) {
   throw new Error(`age plan did not choose compact regular bins: width=${agePlan.binWidth}, bins=${agePlan.bins.length}`);
 }
-equal(agePlan.bins.reduce((sum, bin) => sum + bin.raw, 0) + agePlan.lowTail + agePlan.highTail,
+equal(agePlan.bins.reduce((sum, bin) => sum + bin.raw, 0),
   validAges.length, "age plan raw mass conservation");
 
-// A highly concentrated count with one extreme code-like positive value is
-// the zero-IQR edge case. The robust display must remain usable and still
-// account for the clipped observation explicitly.
+// A highly concentrated count with one extreme positive value is the zero-IQR
+// edge case. It must remain compact without silently dropping the extreme.
 const concentrated = Array.from({ length: 20 }, () => ({ value: 4, w: 1 }));
 concentrated.push({ value: 500, w: 1 });
 const concentratedStats = stats.numericStatistics(concentrated, concentrated.length);
 const concentratedPlan = stats.discreteDistributionPlan(concentrated, concentratedStats, true);
-equal(concentratedPlan.minimum, 4, "zero-IQR robust minimum");
-equal(concentratedPlan.maximum, 4, "zero-IQR robust maximum");
-equal(concentratedPlan.highTail, 1, "zero-IQR high-tail count");
-equal(concentratedPlan.bins.reduce((sum, bin) => sum + bin.raw, 0)
-    + concentratedPlan.lowTail + concentratedPlan.highTail,
+if (!(concentratedPlan.minimum <= 4 && concentratedPlan.maximum >= 500)) {
+  throw new Error("zero-IQR plan does not cover the full valid range");
+}
+equal(concentratedPlan.bins.reduce((sum, bin) => sum + bin.raw, 0),
   concentrated.length, "zero-IQR raw mass conservation");
 
 context.META.years_city = {
@@ -573,31 +692,32 @@ if (yearBars.length > 40) {
   throw new Error(`years-in-city distribution created ${yearBars.length} bars instead of smart bins`);
 }
 const validYears = stats.numericValues("years_city", yearsRows);
-const yearGuide = compositeChart.options.plugins.discreteMedianGuide;
-equal(yearBars.reduce((sum, point) => sum + point.raw, 0) + yearGuide.lowTail + yearGuide.highTail,
+const yearGuide = compositeChart.options.plugins.threeSdGuide;
+close(yearGuide.mean, stats.numericStatistics(validYears, yearsRows.length).mean, 1e-12,
+  "years-in-city three-SD guide uses current mean");
+equal(yearBars.reduce((sum, point) => sum + point.raw, 0),
   validYears.length, "years-in-city raw mass conservation");
 
 // Continuous histograms use the same numeric-axis grammar: numeric bin
-// centers, even spacing, and a robust domain that reports rather than plots
-// the extreme tail. This prevents category auto-skip from inventing awkward
-// labels for otherwise ordinary ages.
+// centers and even spacing across the complete valid domain. The three-SD
+// guide is shown only because its value falls inside that domain.
 context.META.age.kind = "hist";
 context.META.age.distributionMode = "continuous";
 context.DATA.splice(0, context.DATA.length, ...ageRows);
 stats.buildHistogram(compositeCanvas("age_hist", "age"), "age");
 compositeChart = ChartStub.instances[ChartStub.instances.length - 1].config;
 const histogramBars = compositeChart.data.datasets[0].data;
-const histogramGuide = compositeChart.options.plugins.distributionGuide.stats;
+const histogramGuide = compositeChart.options.plugins.threeSdGuide;
 equal(compositeChart.options.scales.x.type, "linear", "continuous histogram uses a numeric x scale");
-equal(histogramGuide.highOutliers, 1, "continuous histogram high-tail count");
-if (!(histogramGuide.displayHigh < 506)) {
-  throw new Error(`continuous histogram display maximum was stretched to ${histogramGuide.displayHigh}`);
+close(stats.meanPlusThreeSd(histogramGuide, histogramGuide.minimum, histogramGuide.maximum),
+  ageStats.meanPlusThreeSd, 1e-12, "continuous histogram three-SD guide value");
+if (!(compositeChart.options.scales.x.max >= 506)) {
+  throw new Error(`continuous histogram omitted a valid value above ${compositeChart.options.scales.x.max}`);
 }
 if (!regularSpacing(histogramBars.map((point) => point.x))) {
   throw new Error("continuous histogram bin centers are not evenly spaced");
 }
-equal(histogramBars.reduce((sum, point) => sum + point.raw, 0)
-    + histogramGuide.lowOutliers + histogramGuide.highOutliers,
+equal(histogramBars.reduce((sum, point) => sum + point.raw, 0),
   validAges.length, "continuous histogram raw mass conservation");
 
 // Filter matching follows the actual DATA payload shape. Numeric formatting

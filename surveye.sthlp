@@ -1,5 +1,5 @@
 {smcl}
-{* *! version 2.1.2 20jul2026}{...}
+{* *! version 2.1.3 21jul2026}{...}
 {vieweralsosee "return" "help return"}{...}
 {vieweralsosee "weight" "help weight"}{...}
 {vieweralsosee "export delimited" "help export delimited"}{...}
@@ -108,7 +108,8 @@ still saved if Stata cannot open the browser.
 and {opt questions()} are omitted, the command considers all chartable
 questionnaire items present in the data.  Variables used only for filters,
 highlights, weights, or maps are added to the temporary export automatically
-and are not charted unless selected.
+and are not charted unless selected.  Variables used only by the optional
+profile table or local-currency/USD switch are handled the same way.
 
 {phang}
 {opt questions(question_names)} selects logical Survey Solutions question
@@ -325,9 +326,10 @@ conservative and uses the actual analysis sample after {ifin}, weights, and
 missing-code exclusions.  Readable ranges display one bar for every integer,
 including zero-frequency gaps.  Wider ranges automatically use equal-width,
 integer-aligned bins.  A numeric x axis supplies regular round-number ticks.
-Negative questionnaire response codes are excluded.  Tukey outliers remain in
-the summary statistics; extreme tails that would flatten the main distribution
-are counted at the plot edges instead.  The numeric Stats tab remains available.
+Negative questionnaire response codes are excluded.  Every valid measurement
+remains in the chart and summary.  A dotted mean-plus-three-standard-deviations
+guide is drawn only when it falls strictly inside the plotted range.  The
+numeric Stats tab remains available and updates immediately with filters.
 
 {phang}
 {opt discrete(varlist)} forces numeric counts, bounded scores, or numeric
@@ -361,7 +363,7 @@ sentinel codes from chart denominators and numeric/date calculations, for
 example {cmd:missingcodes(-999 -998 999)}.  Questionnaire-defined special
 responses remain visible and muted in categorical figures.  Negative special
 codes are automatically excluded from numeric distributions, statistics,
-outlier detection, and numeric filters because response codes such as
+and numeric filters because response codes such as
 {cmd:-4} and {cmd:-9} are not measurements.  Nonnegative substantive
 shortcuts and legitimate negative-valued questions remain valid.  Use
 {opt missingcodes()} for additional undeclared sentinels.
@@ -403,6 +405,108 @@ corrections, or other complex-design features.  Importance weights have no
 general sampling interpretation, so {cmd:surveye} automatically suppresses a
 requested interval for {cmd:iweight} and displays an explanatory note.
 
+{pstd}
+Supplying any supported weight automatically adds a {bf:Weighted estimates}
+switch to the dashboard.  It is on initially.  Turning it off recalculates
+charts, comparisons, numeric summaries, and the optional profile table with
+one unit per row; turning it on restores the supplied weight.  Raw sample
+counts remain raw in either mode.  Both modes use the same exported analysis
+sample, so the switch does not restore observations removed by {cmd:if},
+{cmd:in}, or invalid, zero, or missing weights when the file was built.
+
+
+{marker currency}{...}
+{dlgtab:Local currency and USD}
+
+{phang}
+{opt usdvars(varlist)} identifies numeric, non-date monetary variables that
+readers may display in local currency or US dollars.  It requires
+{opt usdrate()}.
+
+{phang}
+{opt usdrate(#)} gives the fixed number of local-currency units per US dollar.
+For example, with {cmd:usdrate(300)}, a stored local value of 30,000 is shown
+as USD 100 when the USD switch is on.  The rate must be positive.
+
+{phang}
+{opt currency(code)} gives the local-currency code printed with converted
+variables, for example {cmd:currency(LKR)}, {cmd:currency(KES)}, or
+{cmd:currency(PKR)}.  When it is omitted, the label is {it:Local currency}.
+
+{pmore}
+The dashboard starts in local currency.  Its USD switch updates charts,
+numeric Stats, and {opt mean}, {opt median}, or {opt sum} cells in the optional
+profile table for variables named in {opt usdvars()}.  It does not change the
+embedded source values.  SurvEye does not retrieve a current or historical
+exchange rate; choose a rate appropriate to the survey reference period and
+document it with {opt note()} or {opt source()}.
+
+{phang2}{cmd:. surveye sales costs using "questionnaire.html", saving("financials.html") usdvars(sales costs) usdrate(300) currency(LKR) replace open}
+
+
+{marker profiletable}{...}
+{dlgtab:Side-by-side profile table}
+
+{phang}
+{opt tableby(varname)} supplies the grouping variable whose displayed levels
+become table rows.  {opt tablevars(varlist)} supplies the indicator columns.
+The two options are required together.  Variables used only in the table are
+exported automatically and do not become chart cards unless selected normally.
+The responsive table appears near the top of the dashboard, before the
+detailed chart sections.
+
+{phang}
+{opt tablestats(spec)} chooses each indicator's statistic.  Give one entry per
+{opt tablevars()} variable, in the same order, separated by {cmd:|}.  Allowed
+entries are {cmd:auto}, {cmd:share}, {cmd:share:}{it:code}, {cmd:mean},
+{cmd:median}, and {cmd:sum}.  {cmd:auto} uses the median for numeric
+distribution variables and an affirmative share for other compatible
+variables.  {cmd:share} also uses a recognized affirmative category;
+{cmd:share:}{it:code} identifies the intended raw response code explicitly.
+{cmd:mean}, {cmd:median}, and {cmd:sum} require numeric variables.  Omitting
+{opt tablestats()} uses {cmd:auto} for every column.
+
+{phang}
+{opt tablelabels(labels)} overrides the indicator column headings.  Supply one
+label per {opt tablevars()} variable, in the same order, separated by {cmd:|}.
+Without this option, SurvEye uses each variable's available label from the
+questionnaire or Stata metadata; the variable name is the fallback when that
+label is empty.
+
+{phang}
+{opt tabletitle(text)} supplies the profile-table title.  The default is
+{it:Summary table}.
+
+{phang}
+{opt tablesubtitle(text)} supplies a short explanation immediately below the
+table title.
+
+{phang}
+{opt tabletotal(text)} changes the label of the all-group reference row, for
+example {cmd:tabletotal("Sri Lanka (all surveyed locations)")}.  Every profile
+table includes that reference; its default label is {it:All filtered
+interviews}.  The table ignores only its own {opt tableby()} dashboard filter,
+so every grouping row and the reference remain visible for comparison;
+selected grouping rows may be highlighted.  Every other active filter is
+honored.  The reference, table rows, and cells also follow the current weight
+and local-currency/USD switches.
+
+{phang}
+{opt tableweightlabel(text)} changes the weighted-total column heading, for
+example {cmd:tableweightlabel("Est. firms")}.  Raw {it:n} is always shown.
+The weighted total is the sum of the active Stata weights.  Interpret it
+according to the supplied weight type; only an appropriate expansion weight
+should be described as an estimated population count.  The column appears
+only when a Stata weight was supplied and {bf:Weighted estimates} is on; it is
+hidden in unweighted mode.  Its default heading is {it:Weighted total}.
+
+{pmore}
+Table shares, means, medians, sums, raw counts, and conditional weighted totals
+recalculate immediately with the dashboard controls.  Use a concise set of
+decision-relevant columns so the table remains readable on smaller screens.
+
+{phang2}{cmd:. surveye women_led sales banked digital_channel using "questionnaire.html" [pw=pop], saving("profile.html") filters(stratum owner_type) usdvars(sales) usdrate(300) currency(LKR) tableby(stratum) tablevars(women_led sales banked digital_channel) tablestats("share:1|median|share:1|share:1") tablelabels("Women-led|Median sales|Banked|Digital channel") tabletitle("Stratum profile") tablesubtitle("Key indicators side by side") tabletotal("Sri Lanka (all surveyed locations)") tableweightlabel("Est. firms") replace open}
+
 
 {marker ci}{...}
 {dlgtab:Confidence intervals and numeric statistics}
@@ -434,13 +538,15 @@ have no general sampling interpretation.
 
 {pstd}
 Each numeric card has {it:Distribution} and {it:Stats} tabs.  The distribution
-uses the Tukey whisker range so extreme values do not flatten the main
-histogram; outliers remain counted and included in the statistics.  The Stats
-tab reports valid raw n, missing/excluded n, mean, standard deviation, minimum,
-maximum, p25, median, p75, Tukey fences, and outlier count.  Tukey outliers are
-below {it:p25 - 1.5 x IQR} or above {it:p75 + 1.5 x IQR}.  Weighted dashboards
-identify these statistics as descriptive weighted summaries and additionally
-report weighted outlier mass and its share of valid weight.
+includes every valid measurement on a regular numeric axis.  A dotted
+{it:Mean + 3 SD} reference is shown only when the standard deviation is positive
+and the reference lies strictly inside the plotted range.  The Stats tab
+reports valid raw n, missing/excluded n, mean, standard deviation, minimum,
+maximum, p25, median, p75, and the mean-plus-three-standard-deviations
+reference.  It recalculates immediately whenever a dashboard filter changes,
+including while the Stats tab is open.  Weighted dashboards identify these
+statistics as descriptive weighted summaries and report the valid weighted
+sum.  SurvEye does not classify or label observations as Tukey outliers.
 
 
 {marker map}{...}
@@ -670,23 +776,35 @@ does not upload data.
 
 {phang2}{cmd:. surveye sector sales using "questionnaire.html" [pw=pop], saving("weighted.html") filters(region) note("Intervals use an effective-sample-size approximation.") replace}
 
-{pstd}{bf:12. Build an Arabic right-to-left dashboard}
+{pmore}
+Each weighted dashboard starts with {bf:Weighted estimates} on.  Readers may
+turn it off to recalculate the displayed results without weights.
+
+{pstd}{bf:12. Add a local-currency/USD switch}
+
+{phang2}{cmd:. surveye sales costs profit using "questionnaire.html", saving("financials.html") usdvars(sales costs profit) usdrate(300) currency(LKR) note("USD values use 300 LKR per USD.") replace open}
+
+{pstd}{bf:13. Add a live stratum profile table}
+
+{phang2}{cmd:. surveye women_led sales banked digital_channel using "questionnaire.html" [pw=pop], saving("profile.html") filters(stratum owner_type) usdvars(sales) usdrate(300) currency(LKR) tableby(stratum) tablevars(women_led sales banked digital_channel) tablestats("share:1|median|share:1|share:1") tablelabels("Women-led|Median sales|Banked|Digital channel") tabletitle("Stratum profile") tablesubtitle("Key indicators side by side") tabletotal("Sri Lanka (all surveyed locations)") tableweightlabel("Est. firms") replace open}
+
+{pstd}{bf:14. Build an Arabic right-to-left dashboard}
 
 {phang2}{cmd:. surveye using "questionnaire_ar.html", saving("dashboard_ar.html") uilanguage(ar) direction(auto) replace open}
 
-{pstd}{bf:13. Build an Urdu right-to-left dashboard}
+{pstd}{bf:15. Build an Urdu right-to-left dashboard}
 
 {phang2}{cmd:. surveye using "questionnaire_ur.html", saving("dashboard_ur.html") uilanguage(urdu) direction(rtl) replace open}
 
-{pstd}{bf:14. Show every GPS record over Google Hybrid}
+{pstd}{bf:16. Show every GPS record over Google Hybrid}
 
 {phang2}{cmd:. surveye sector sales using "questionnaire.html", saving("mapped.html") latitude(gps_latitude) longitude(gps_longitude) country(KEN) boundaries("World Bank Official Boundaries - Admin 2.zip") maplevel(admin2) maptype(points) basemap(google_hybrid) mapby(sector) maptitle("Interview locations") replace open}
 
-{pstd}{bf:15. Use OpenStreetMap or an aggregated point display}
+{pstd}{bf:17. Use OpenStreetMap or an aggregated point display}
 
 {phang2}{cmd:. surveye sector using "questionnaire.html", saving("clustered.html") latitude(gps_latitude) longitude(gps_longitude) country(KEN) maptype(cluster) basemap(osm) replace}
 
-{pstd}{bf:16. Preview a translated questionnaire}
+{pstd}{bf:18. Preview a translated questionnaire}
 
 {phang2}{cmd:. surveye demo using "siNhl Global_informal2026.html", saving("sinhala_preview.html") n(250) seed(42) theme(clean) replace open}
 
@@ -736,7 +854,7 @@ If the Java engine is missing or Stata reports {cmd:r(5100)}, verify the package
 
 {phang2}{cmd:. which surveye}
 
-{phang2}{cmd:. findfile surveye_2_1_2.jar}
+{phang2}{cmd:. findfile surveye_2_1_3.jar}
 
 {phang2}{cmd:. java query}
 

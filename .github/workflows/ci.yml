@@ -33,10 +33,10 @@ jobs:
           node --check tests/visual_qa.js
           node tests/test_statistics.js
           java -jar surveye.jar --version
-          cmp surveye.jar surveye_2_1_2.jar
+          cmp surveye.jar surveye_2_1_3.jar
           unzip -t surveye.jar
-          unzip -t surveye_2_1_2.jar
-          javap -classpath surveye_2_1_2.jar -public org.worldbank.surveye.StataPlugin
+          unzip -t surveye_2_1_3.jar
+          javap -classpath surveye_2_1_3.jar -public org.worldbank.surveye.StataPlugin
           tests/check_package.sh
 
       - name: Stata-Java status contract
@@ -57,11 +57,11 @@ jobs:
       - name: Verify release archives
         run: |
           ./release.sh /tmp/surveye-release
-          unzip -t /tmp/surveye-release/surveye-2.1.2.zip
-          unzip -t /tmp/surveye-release/surveye-2.1.2-github.zip
-          unzip -t /tmp/surveye-release/surveye-2.1.2-ssc.zip
-          for file in README.md stata.toc surveye.pkg surveye.ado surveye.sthlp surveye.jar surveye_2_1_2.jar; do
-            unzip -Z1 /tmp/surveye-release/surveye-2.1.2-github.zip | grep -Fxq "$file"
+          unzip -t /tmp/surveye-release/surveye-2.1.3.zip
+          unzip -t /tmp/surveye-release/surveye-2.1.3-github.zip
+          unzip -t /tmp/surveye-release/surveye-2.1.3-ssc.zip
+          for file in README.md stata.toc surveye.pkg surveye.ado surveye.sthlp surveye.jar surveye_2_1_3.jar; do
+            unzip -Z1 /tmp/surveye-release/surveye-2.1.3-github.zip | grep -Fxq "$file"
           done
-          test "$(unzip -Z1 /tmp/surveye-release/surveye-2.1.2-ssc.zip | head -n 1 | cut -d/ -f1)" != "surveye-2.1.2-ssc"
-          if unzip -Z1 /tmp/surveye-release/surveye-2.1.2-ssc.zip | grep -Eiq '(^|/)(suso_dashboard|surveydash)'; then exit 1; fi
+          test "$(unzip -Z1 /tmp/surveye-release/surveye-2.1.3-ssc.zip | head -n 1 | cut -d/ -f1)" != "surveye-2.1.3-ssc"
+          if unzip -Z1 /tmp/surveye-release/surveye-2.1.3-ssc.zip | grep -Eiq '(^|/)(suso_dashboard|surveydash)'; then exit 1; fi

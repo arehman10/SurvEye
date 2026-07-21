@@ -4,7 +4,7 @@ set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 PKG="$ROOT/surveye.pkg"
 GENERIC_JAR="$ROOT/surveye.jar"
-RELEASE_JAR="$ROOT/surveye_2_1_2.jar"
+RELEASE_JAR="$ROOT/surveye_2_1_3.jar"
 
 for required in "$PKG" "$ROOT/stata.toc" "$GENERIC_JAR" "$RELEASE_JAR"; do
   if [ ! -f "$required" ]; then
@@ -13,12 +13,12 @@ for required in "$PKG" "$ROOT/stata.toc" "$GENERIC_JAR" "$RELEASE_JAR"; do
   fi
 done
 
-if ! grep -Fq 'd Version: 2.1.2' "$PKG" ||
-   ! grep -Fq 'F surveye_2_1_2.jar' "$PKG" ||
+if ! grep -Fq 'd Version: 2.1.3' "$PKG" ||
+   ! grep -Fq 'F surveye_2_1_3.jar' "$PKG" ||
    ! grep -Eq '^[fF] surveye[.]ado$' "$PKG" ||
    ! grep -Eq '^[fF] surveye[.]sthlp$' "$PKG" ||
    ! grep -Eq '^[fF] surveye[.]jar$' "$PKG"; then
-  echo "FAIL: package manifest does not identify the v2.1.2 release JAR" >&2
+  echo "FAIL: package manifest does not identify the v2.1.3 release JAR" >&2
   exit 1
 fi
 
@@ -47,7 +47,7 @@ if ! printf '%s\n' "$manifest" | grep -Fq 'Main-Class: SurvEye'; then
   exit 1
 fi
 if ! printf '%s\n' "$manifest" | grep -Fq 'Implementation-Title: SurvEye' ||
-   ! printf '%s\n' "$manifest" | grep -Fq 'Implementation-Version: 2.1.2'; then
+   ! printf '%s\n' "$manifest" | grep -Fq 'Implementation-Version: 2.1.3'; then
   echo "FAIL: executable JAR manifest has stale product/version metadata" >&2
   exit 1
 fi
