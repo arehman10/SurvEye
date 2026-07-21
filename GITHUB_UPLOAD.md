@@ -6,11 +6,11 @@ file named by that metadata must be present at the repository root.
 ## Recommended upload
 
 1. Run `./release.sh /path/to/release`.
-2. Extract `surveye-2.1.0-github.zip`.
+2. Extract `surveye-2.1.1-github.zip`.
 3. Upload the **contents** of the extracted archive to the root of
    `arehman10/SurvEye` on the `main` branch.
 4. Replace the existing root files when GitHub asks. Do not upload the ZIP by
-   itself and do not retain an enclosing `surveye-2.1.0-github` folder.
+   itself and do not retain an enclosing `surveye-2.1.1-github` folder.
 5. Make the repository public. Stata cannot authenticate to a private GitHub
    raw-content URL during a normal `net install`.
 
@@ -23,7 +23,7 @@ surveye.pkg
 surveye.ado
 surveye.sthlp
 surveye.jar
-surveye_2_1_0.jar
+surveye_2_1_1.jar
 example.do
 LICENSE
 THIRDPARTY-LICENSES.md
@@ -52,7 +52,7 @@ Start a fresh Stata session and run:
 net install surveye, from("https://raw.githubusercontent.com/arehman10/SurvEye/main/") replace
 discard
 which surveye
-findfile surveye_2_1_0.jar
+findfile surveye_2_1_1.jar
 help surveye
 ```
 

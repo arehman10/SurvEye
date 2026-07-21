@@ -1,4 +1,4 @@
-*! version 2.1.0 20jul2026
+*! version 2.1.1 20jul2026
 
 program define surveye, rclass
     version 16.0
@@ -48,10 +48,10 @@ program define _surveye_main, rclass
           EXclude(string asis) FILters(varlist) HIGHlights(varlist) ///
           KEYMessages(string) CUSTOMSections(string)                 ///
           CUSTOMVars(varlist) ADDToSections(string)                  ///
-          VARGroups(string asis) NOAUTOGroups UNGROUPVars(varlist)   ///
+          VARGroups(string) NOAUTOGroups UNGROUPVars(varlist)        ///
           DISCrete(varlist) CONTinuous(varlist) NOAUTODISCrete      ///
           COMPARE(varlist) COMPAREBy(varname)                        ///
-          COMPARETitle(string) COMPARELevels(string asis)            ///
+          COMPARETitle(string) COMPARELevels(string)                 ///
           BARs(varlist) DONUTs(varlist) HISTograms(varlist)          ///
           MAXCategories(integer 12) MAXPanels(integer 100)          ///
           MISSingcodes(numlist missingokay)                         ///
@@ -754,7 +754,7 @@ program define _surveye_main, rclass
     if missing(`outN') return scalar N = `sample_N'
     return scalar sample_N = `sample_N'
     return scalar weighted = `weighted'
-    return local package_version "2.1.0"
+    return local package_version "2.1.1"
 end
 
 
@@ -852,7 +852,7 @@ program define _surveye_describe, rclass
     _surveye_read_status using `"`statusfile'"'
     return add
     if `"`macval(outquestionnaire)'"' == "" return local questionnaire `"`macval(using)'"'
-    return local package_version "2.1.0"
+    return local package_version "2.1.1"
 end
 
 
@@ -1037,7 +1037,7 @@ program define _surveye_demo, rclass
         return local filename `"`macval(saving)'"'
     }
     if `"`macval(outquestionnaire)'"' == "" return local questionnaire `"`macval(using)'"'
-    return local package_version "2.1.0"
+    return local package_version "2.1.1"
 end
 
 
@@ -1108,7 +1108,7 @@ program define _surveye_invoke, rclass
     version 16.0
     args configfile statusfile diagnostics
 
-    local jarname "surveye_2_1_0.jar"
+    local jarname "surveye_2_1_1.jar"
     capture findfile `jarname'
     if _rc {
         display as error "`jarname' is not installed on the Stata ado-path"

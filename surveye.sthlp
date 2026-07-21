@@ -1,5 +1,5 @@
 {smcl}
-{* *! version 2.1.0 20jul2026}{...}
+{* *! version 2.1.1 20jul2026}{...}
 {vieweralsosee "return" "help return"}{...}
 {vieweralsosee "weight" "help weight"}{...}
 {vieweralsosee "export delimited" "help export delimited"}{...}
@@ -733,7 +733,7 @@ If the Java engine is missing or Stata reports {cmd:r(5100)}, verify the package
 
 {phang2}{cmd:. which surveye}
 
-{phang2}{cmd:. findfile surveye_2_1_0.jar}
+{phang2}{cmd:. findfile surveye_2_1_1.jar}
 
 {phang2}{cmd:. java query}
 

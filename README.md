@@ -43,11 +43,11 @@ Verify the wrapper, release-specific engine, and help file:
 
 ```stata
 which surveye
-findfile surveye_2_1_0.jar
+findfile surveye_2_1_1.jar
 help surveye
 ```
 
-The package marks its JARs with uppercase `F` records so `net install` places both files on the ado-path. Stata uses `surveye_2_1_0.jar`; the byte-identical `surveye.jar` remains available for command-line and development use. After replacing an earlier copy, type `discard` or restart Stata.
+The package marks its JARs with uppercase `F` records so `net install` places both files on the ado-path. Stata uses `surveye_2_1_1.jar`; the byte-identical `surveye.jar` remains available for command-line and development use. After replacing an earlier copy, type `discard` or restart Stata.
 
 ### Requirements
 
@@ -69,7 +69,7 @@ plain text in a browser:
 - <https://raw.githubusercontent.com/arehman10/SurvEye/main/surveye.pkg>
 
 Then retry the copy-ready command above. The package files must be at the
-repository root, not inside a ZIP file or an enclosing `surveye-2.1.0` folder.
+repository root, not inside a ZIP file or an enclosing `surveye-2.1.1` folder.
 If an earlier SurvEye JAR was already used in the current Stata session, fully
 restart Stata after reinstalling; the JVM can retain a loaded JAR until Stata
 exits. Regenerate previously created dashboards to receive the new interface.
@@ -426,7 +426,7 @@ For a map-enabled dashboard, the harness should allow or deliberately stub the d
 
 - `surveye.ado` — Stata command and Java bridge
 - `surveye.sthlp` — complete Stata help
-- `surveye_2_1_0.jar` — release-specific JAR used by Stata
+- `surveye_2_1_1.jar` — release-specific JAR used by Stata
 - `surveye.jar` — byte-identical conventional JAR
 - `surveye.pkg` and `stata.toc` — Stata package metadata
 - `example.do` — runnable starter and recipes

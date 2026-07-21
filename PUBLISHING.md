@@ -39,7 +39,7 @@ do "tests/stata_smoke.do" "C:/path/to/surveye"
 Also test an installation from the staged SSC directory in a clean ado-path:
 
 ```stata
-net install surveye, from("C:/path/to/release/surveye-2.1.0-ssc") replace
+net install surveye, from("C:/path/to/release/surveye-2.1.1-ssc") replace
 discard
 which surveye
 help surveye
@@ -77,10 +77,10 @@ and the [OpenStreetMap tile-use policy](https://operations.osmfoundation.org/pol
 
 This creates:
 
-- `surveye-2.1.0.zip` — full source, tests, documentation, example, and JARs;
-- `surveye-2.1.0-github.zip` — the same clean source with its contents flat at
+- `surveye-2.1.1.zip` — full source, tests, documentation, example, and JARs;
+- `surveye-2.1.1-github.zip` — the same clean source with its contents flat at
   the archive root, ready to upload to the GitHub repository root;
-- `surveye-2.1.0-ssc.zip` — only the flat installable package; and
+- `surveye-2.1.1-ssc.zip` — only the flat installable package; and
 - matching inspectable staging directories.
 
 The script builds from source, verifies the exact flat SSC inventory before
@@ -90,7 +90,7 @@ remain in a developer's working directory, and prints SHA-256 checksums.
 ## 6. Publish to GitHub
 
 - Read `GITHUB_UPLOAD.md`.
-- Upload the *contents* of `surveye-2.1.0-github.zip` to the root of the
+- Upload the *contents* of `surveye-2.1.1-github.zip` to the root of the
   `main` branch. Do not upload only the ZIP and do not add an enclosing folder.
 - Make the repository public before testing unauthenticated installation.
 - Confirm that both raw metadata URLs return plain text:
@@ -102,13 +102,13 @@ remain in a developer's working directory, and prints SHA-256 checksums.
 net install surveye, from("https://raw.githubusercontent.com/arehman10/SurvEye/main/") replace
 discard
 which surveye
-findfile surveye_2_1_0.jar
+findfile surveye_2_1_1.jar
 help surveye
 ```
 
 ## 7. Create the formal release and submit to SSC
 
-- Create an annotated `v2.1.0` tag and GitHub release.
+- Create an annotated `v2.1.1` tag and GitHub release.
 - Attach the source and SSC archives and publish the checksums shown by the
   release workflow.
 - Submit the tested flat SSC package with the help file, license, third-party

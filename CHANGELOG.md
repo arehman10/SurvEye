@@ -5,6 +5,18 @@ development names are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and releases use
 semantic versioning.
 
+## [2.1.1] — 2026-07-20
+
+### Fixed
+
+- Fixed quoted `comparelevels()` values in Stata.  Options such as
+  `comparelevels("Male|Female")` now reach the engine as the two display labels
+  `Male` and `Female`, instead of the literal fragments `"Male` and `Female"`.
+- Fixed the same outer-quote handling for documented `vargroups("Title:: ...")`
+  specifications.
+- Added engine-side defensive quote normalization and regression coverage for
+  labeled numeric comparison groups and quoted manual families.
+
 ## [2.1.0] — 2026-07-20
 
 ### Added

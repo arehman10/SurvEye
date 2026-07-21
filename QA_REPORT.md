@@ -1,4 +1,4 @@
-# QA report — SurvEye 2.1.0
+# QA report — SurvEye 2.1.1
 
 Release-candidate review date: 2026-07-16
 
@@ -132,7 +132,7 @@ bounded, scrollable expanded controls. Both expanded and collapsed states had
 zero horizontal overflow; all charts and all 300/120 point markers remained
 rendered without browser, page, or unexpected-network errors.
 
-Eight final 2.1.0 executable suites passed after the palette, symmetry, and
+Eight final 2.1.1 executable suites passed after the palette, symmetry, and
 controls-disclosure refresh: 25 of 25 viewport runs and 25 saved screenshots.
 Seven baseline suites retain the original three-viewport matrix; the regenerated
 release sample also passes the short-desktop regression, for four viewports. Reports
@@ -172,7 +172,7 @@ pattern and Leaflet behavior but intentionally intercepts tile responses.
 
 ## Package checks
 
-- Engine version: 2.1.0
+- Engine version: 2.1.1
 - Generic and release-specific JARs are verified byte-for-byte identical. A fixed SHA is not published because ZIP entry timestamps change on a clean rebuild.
 - Every Java class in the current release build has Java 8 major version 52
 - Runtime dependencies: `java.base` only
@@ -214,7 +214,7 @@ pattern and Leaflet behavior but intentionally intercepts tile responses.
   filename, the SSC ZIP is flat and matches the package manifest exactly, and
   SHA-256 checksums are printed after validation
 - Shell and JavaScript syntax checks: passed
-- GitHub Actions builds and validates the `2.1.0` release-specific JAR, runs
+- GitHub Actions builds and validates the `2.1.1` release-specific JAR, runs
   the package-integrity checks, and exercises the clean flat-SSC release builder
 
 ## Required Stata release smoke test
@@ -225,7 +225,7 @@ version you intend to support:
 ```stata
 net install surveye, from("LOCAL_OR_RELEASE_URL") replace
 which surveye
-findfile surveye_2_1_0.jar
+findfile surveye_2_1_1.jar
 help surveye
 
 surveye describe using "English TRG_2025.html", detail
@@ -257,7 +257,7 @@ surveye using "questionnaire_ur.html", saving("smoke_ur.html") ///
 Run the bundled deterministic wrapper regression after installation:
 
 ```stata
-do "tests/stata_smoke.do" "C:/path/to/extracted/surveye-2.1.0"
+do "tests/stata_smoke.do" "C:/path/to/extracted/surveye-2.1.1"
 ```
 
 Also test:
@@ -278,7 +278,7 @@ Also test:
 7. Arabic and Urdu `uilanguage(auto)` detection, explicit `ar`/`ur` aliases,
    `direction(auto|ltr|rtl)`, RTL keyboard navigation, and mobile overflow; and
 8. installation from an SSC-like index, confirming both uppercase `F` JARs are
-   installed and `findfile surveye_2_1_0.jar` resolves the release-specific binary.
+   installed and `findfile surveye_2_1_1.jar` resolves the release-specific binary.
 
 ## Publication notes
 
