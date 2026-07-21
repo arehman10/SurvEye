@@ -1,5 +1,5 @@
 {smcl}
-{* *! version 2.0.0 17jul2026}{...}
+{* *! version 2.0.0 20jul2026}{...}
 {vieweralsosee "return" "help return"}{...}
 {vieweralsosee "weight" "help weight"}{...}
 {vieweralsosee "export delimited" "help export delimited"}{...}
@@ -221,6 +221,14 @@ and privacy-reduced text or media questions offer localized
 {it:Answered}/{it:Missing} choices.  An explicitly requested categorical
 filter with no observed valid values stops with an explanatory error instead
 of showing controls that can only produce zero results.
+
+{pmore}
+The sticky search/filter panel is collapsed by default so it does not cover the
+figures.  Select {bf:Show filters} to reveal its contents and {bf:Hide filters}
+to return to the compact toolbar.  Collapsing the panel preserves the search
+text and selected choices.  The toolbar keeps {bf:Reset all}, the live interview
+count, and—when applicable—the number of active filter choices visible.
+{bf:Reset all} clears both the response filters and the indicator search.
 
 {phang}
 {opt highlights(varlist)} creates up to six summary cards.

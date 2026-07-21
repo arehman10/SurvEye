@@ -1,4 +1,4 @@
-*! SurvEye example 2.0.0 16jul2026
+*! SurvEye example 2.0.0 20jul2026
 version 16.0
 clear all
 set more off
@@ -45,6 +45,9 @@ Select indicators and observations:
         title("Enterprise survey results") replace
 
 Choose dashboard density (compact is the default; comfortable is opt-in):
+
+    // The sticky search/filter toolbar starts collapsed in either density.
+    // Show filters reveals the controls without clearing existing selections.
 
     surveye legalstatus employment sales using "questionnaire.html", ///
         saving("compact.html") density(compact) replace open

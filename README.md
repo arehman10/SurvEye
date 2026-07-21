@@ -152,6 +152,14 @@ excluded from numeric filters, so values such as Survey Solutions' `-4` and
 observed choices returns an actionable error instead of creating a zero-result
 control.
 
+The search and filter area starts collapsed so the sticky header does not cover
+the charts. Select **Show filters** to reveal search and filter choices, then
+**Hide filters** to return to the compact toolbar. Active selections and search
+text are preserved when the panel is collapsed. The toolbar always keeps
+**Reset all** and the live interview count in view; the active-filter badge
+appears when one or more filter choices are selected. **Reset all** clears both
+the response filters and the indicator search.
+
 Automatic chart choices emphasize compact comparison: horizontal percentage bars for categorical and multiselect items, split bars for binary and answered/missing items, histograms for numeric variables, and time distributions for dates. Donuts are opt-in through `donuts()`. `maxcategories()` combines less frequent levels into **Other** without changing the valid-response denominator.
 
 The chart palette uses consistent roles rather than arbitrary rainbow coloring: ordinary comparisons are blue, numeric distributions purple, date trends navy, and median/outlier guides coral. Generic Yes/No cards use blue and a neutral stone so color does not imply that every Yes is good or every No is bad; answered/missing cards use green and gray. Special values remain visibly muted, and category/map colors are assigned from the full response order so filtering does not make a category change color. Cards are packed into balanced three-, two-, or one-card rows, with equal edges inside each row and no extra page height.

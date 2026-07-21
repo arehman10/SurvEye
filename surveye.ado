@@ -913,7 +913,6 @@ program define _surveye_custommeta
                     local valueindex = 0
                     foreach onelevel of local customlevels {
                         local ++valueindex
-                        // valuelabel is a label-definition name; parentheses would mean a variable.
                         local labeltext ""
                         capture local labeltext : label `valuelabel' `onelevel'
                         if _rc | strtrim(`"`macval(labeltext)'"') == "" {

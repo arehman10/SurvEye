@@ -5,7 +5,7 @@ development names are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and releases use
 semantic versioning.
 
-## [2.0.0] — 2026-07-17
+## [2.0.0] — 2026-07-20
 
 ### Added
 
@@ -31,12 +31,14 @@ semantic versioning.
 - Changed confidence intervals from automatic to opt-in so dense dashboards remain visually clear. Binary yes/no, answered/missing completion, and donut cards never display CI text or whiskers, even when `ci` is supplied.
 - Refreshed the visual grammar with a restrained World Bank chart palette: blue for ordinary comparisons, purple for distributions, navy for time trends, coral for median/outlier guides, neutral binary alternatives, and muted special values. Category and map colors now remain stable when filters change.
 - Balanced incomplete card rows into deliberate three-, two-, or one-card compartments, stretched card edges within each row, and retained the compact chart heights. Normal Chart.js transitions now use 800 milliseconds; reduced-motion users still receive no animation.
+- Replaced the tall sticky search/filter block with a compact toolbar that starts collapsed. An accessible Show/Hide filters disclosure reveals the full controls, preserves selections when closed, and keeps Reset all, the live interview count, and any active-filter count visible in the toolbar.
 - Delayed chart construction until a chart is genuinely visible, deferred it while the browser tab is hidden, and removed eager whole-section rendering so the 800 millisecond transition is seen instead of finishing offscreen.
 - Retained the compact visuals, custom-variable placement, optional confidence intervals, outlier-aware Stats tab, and Leaflet/Google map behavior introduced in 1.2.0.
 - Localized generated Additional indicators, Other indicators, and untitled Key message headings instead of leaving English fallback text in Arabic or Urdu dashboards.
 
 ### Fixed
 
+- Corrected custom numeric value-label lookup in Stata: the attached value-label definition is now resolved by name, with a safe raw-code fallback for missing/orphan definitions, instead of being mistaken for a dataset variable and raising `r(111)`.
 - Corrected the public and parser-facing weight order to Stata's `using questionnaire.html [weight], options` grammar and added a static regression guard for every shipped example.
 - Replaced Survey Solutions' generic calculated-variable labels with the actual variable name across panels, filters, highlights, and metadata, while preserving meaningful Stata and questionnaire labels.
 - Kept explicitly configured missing codes out of categorical, multiselect, numeric, date, filter, and privacy-reduced completion calculations. Questionnaire-declared negative special response codes remain visible in categorical figures but are now excluded automatically from numeric distributions, statistics, outlier detection, and numeric filter choices; nonnegative substantive shortcuts remain valid.
@@ -48,6 +50,7 @@ semantic versioning.
 - Kept GPS rows whose `mapby()` value is configured missing as visible ungrouped points while excluding those values from map legends and category limits.
 - Fully mirrored horizontal bar axes and direct-value labels in RTL layouts, and hardened category, filter, navigation, and map dictionaries so legitimate values such as `__proto__`, `constructor`, and `toString` cannot corrupt dashboard state.
 - Embedded the applicable Chart.js, Leaflet, and Noto Sans Arabic license notices in each standalone HTML output and documented that the keyless Google tile URLs are unofficial compatibility endpoints whose availability and terms may change.
+- Made Reset all clear the indicator search as well as response-filter choices, and refreshed visible charts and Leaflet sizing after the controls panel changes height.
 
 ### Compatibility
 
