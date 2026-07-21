@@ -914,8 +914,11 @@ program define _surveye_custommeta
                     foreach onelevel of local customlevels {
                         local ++valueindex
                         // valuelabel is a label-definition name; parentheses would mean a variable.
-                        local labeltext : label `valuelabel' `onelevel'
-                        if strtrim(`"`macval(labeltext)'"') == "" local labeltext `"`onelevel'"'
+                        local labeltext ""
+                        capture local labeltext : label `valuelabel' `onelevel'
+                        if _rc | strtrim(`"`macval(labeltext)'"') == "" {
+                            local labeltext `"`onelevel'"'
+                        }
                         _surveye_cfgline `handle' datavalue.`variable'.`valueindex' ///
                             `"`onelevel'::`macval(labeltext)'"'
                     }
