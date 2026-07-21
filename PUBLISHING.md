@@ -1,0 +1,116 @@
+# Publishing SurvEye
+
+Use this checklist for releases from the permanent public repository:
+
+<https://github.com/arehman10/SurvEye>
+
+## 1. Confirm public package metadata
+
+- Keep the repository and issue URLs synchronized in `README.md`,
+  `surveye.sthlp`, and `surveye.pkg`.
+- Keep the release date synchronized in `surveye.pkg`, `surveye.sthlp`, and
+  `CHANGELOG.md`.
+- Confirm that the `surveye` command/package name is available at SSC.
+
+## 2. Run the portable release gate
+
+From the repository root:
+
+```bash
+./build.sh
+./tests/check_stata_source.sh
+./tests/check_package.sh
+node tests/test_statistics.js
+./tests/run_engine_smoke.sh tests
+./tests/run_parser_tests.sh /path/to/questionnaire-html-files
+./tests/run_engine_smoke.sh /path/to/questionnaire-html-files
+```
+
+## 3. Run the licensed-Stata gate
+
+Use Stata 16 and the current supported Stata release. The smoke file must use
+the source directory explicitly so an older installed command cannot mask the
+candidate release:
+
+```stata
+do "tests/stata_smoke.do" "C:/path/to/surveye"
+```
+
+Also test an installation from the staged SSC directory in a clean ado-path:
+
+```stata
+net install surveye, from("C:/path/to/release/surveye-2.1.0-ssc") replace
+discard
+which surveye
+help surveye
+```
+
+Build at least one real, one weighted, one Arabic/Urdu RTL, and one map-enabled
+dashboard in Stata. Open each generated file in the supported browsers. Confirm
+that default output contains no CI text or whiskers, then rerun an eligible
+categorical or multiselect bar with `ci level(90)`. Binary yes/no,
+answered/missing completion, and donut cards must remain CI-free even when
+`ci` is supplied.
+
+For every dashboard, confirm that the search/filter toolbar starts collapsed,
+does not cover the figures on a short desktop viewport, opens with Enter and
+Space, closes with Escape, and preserves active choices. Test Reset all while
+the body is collapsed: it must clear both response filters and indicator search.
+Check the expanded state for horizontal overflow in LTR and RTL layouts and
+verify that charts and an open Leaflet map remain correctly sized afterward.
+
+## 4. Confirm map-provider policy
+
+The Google choices mirror the keyless compatibility endpoints used by
+`esqc_gps`; they are not an authenticated Google Maps Platform integration.
+Confirm permitted use, attribution, and organizational policy for the intended
+release. Keep `basemap(osm)` documented as an alternative and review the
+OpenStreetMap tile-use policy as well. Current primary references are the
+[Google Map Tiles API documentation](https://developers.google.com/maps/documentation/tile)
+and the [OpenStreetMap tile-use policy](https://operations.osmfoundation.org/policies/tiles/).
+
+## 5. Create clean archives
+
+```bash
+./release.sh /path/to/release
+```
+
+This creates:
+
+- `surveye-2.1.0.zip` — full source, tests, documentation, example, and JARs;
+- `surveye-2.1.0-github.zip` — the same clean source with its contents flat at
+  the archive root, ready to upload to the GitHub repository root;
+- `surveye-2.1.0-ssc.zip` — only the flat installable package; and
+- matching inspectable staging directories.
+
+The script builds from source, verifies the exact flat SSC inventory before
+publishing any archive, excludes retired installable filenames even if they
+remain in a developer's working directory, and prints SHA-256 checksums.
+
+## 6. Publish to GitHub
+
+- Read `GITHUB_UPLOAD.md`.
+- Upload the *contents* of `surveye-2.1.0-github.zip` to the root of the
+  `main` branch. Do not upload only the ZIP and do not add an enclosing folder.
+- Make the repository public before testing unauthenticated installation.
+- Confirm that both raw metadata URLs return plain text:
+  - <https://raw.githubusercontent.com/arehman10/SurvEye/main/stata.toc>
+  - <https://raw.githubusercontent.com/arehman10/SurvEye/main/surveye.pkg>
+- Test from a fresh Stata session:
+
+```stata
+net install surveye, from("https://raw.githubusercontent.com/arehman10/SurvEye/main/") replace
+discard
+which surveye
+findfile surveye_2_1_0.jar
+help surveye
+```
+
+## 7. Create the formal release and submit to SSC
+
+- Create an annotated `v2.1.0` tag and GitHub release.
+- Attach the source and SSC archives and publish the checksums shown by the
+  release workflow.
+- Submit the tested flat SSC package with the help file, license, third-party
+  notices, author/contact details, and a concise description of the Java 8
+  engine requirement and online base-map behavior.

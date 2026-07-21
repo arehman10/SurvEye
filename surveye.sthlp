@@ -1,5 +1,5 @@
 {smcl}
-{* *! version 2.0.0 20jul2026}{...}
+{* *! version 2.1.0 20jul2026}{...}
 {vieweralsosee "return" "help return"}{...}
 {vieweralsosee "weight" "help weight"}{...}
 {vieweralsosee "export delimited" "help export delimited"}{...}
@@ -204,6 +204,73 @@ variables remain in {it:Additional indicators}.  {opt addtosections()} may not
 be combined with {opt customsections()}.
 
 
+{dlgtab:Related-variable families}
+
+{phang}
+SurvEye automatically combines high-confidence families of related binary
+variables into one compact comparison figure.  For example,
+{cmd:srib8a}, {cmd:srib8b}, and {cmd:srib8c} can be displayed as three labelled
+rows in a single card.  Automatic grouping is conservative: members must have
+a recognizable letter suffix, compatible response categories, and the same
+final dashboard section.  Survey Solutions multiselect storage columns such as
+{cmd:q__1} and {cmd:q__2} are never treated as a suffix family.
+
+{phang}
+{opt vargroups(spec)} defines groups manually.  Separate groups with {cmd:|}
+and write each as {cmd:Title:: varlist}.  The double colon separates the
+displayed title from an ordinary Stata varlist, so ranges and wildcards are
+expanded by Stata.  Every group requires at least two variables, and a
+variable may occur in only one manual group.  Members must already be selected
+by the main {it:varlist}, {opt questions()}, or {opt customvars()}.  Example:
+
+{phang2}{cmd:vargroups("Digital channels:: srib8a srib8b srib8c|Business support:: srib9a srib9b srib9c")}
+
+{pmore}
+Questionnaire text supplies each row label.  For a custom variable, its Stata
+variable label is used, with the variable name as the fallback.  Manual groups
+take precedence over automatic grouping and inherit the final section shared
+by their members.  Use {opt customsections()} or {opt addtosections()} first
+when custom variables need to be placed together.
+
+{phang}
+{opt ungroupvars(varlist)} keeps named variables as separate cards while
+leaving automatic grouping available elsewhere.  Use {opt noautogroups} to
+turn off all automatically detected families.  Explicit {opt vargroups()}
+remain active with {opt noautogroups}.  A variable may not appear in both
+{opt vargroups()} and {opt ungroupvars()}.
+
+
+{dlgtab:Explicit binary comparisons}
+
+{phang}
+{opt compare(varlist)} combines up to 12 selected binary variables in one
+grouped horizontal-bar comparison.  Each bar reports the affirmative response
+share, and {opt compareby(varname)} supplies the comparison groups.  Both
+options are required together.  The {opt compareby()} variable is exported
+for the comparison but is not added as an indicator card unless it is also
+selected normally.  Example:
+
+{phang2}{cmd:compare(srib8a srib8b srib8c) compareby(city)}
+
+{phang}
+{opt comparetitle(text)} replaces the automatically generated comparison
+title.
+
+{phang}
+{opt comparelevels(levels)} limits and orders the displayed values of
+{opt compareby()}.  Separate exact raw values or displayed value labels with
+{cmd:|}; for example,
+{cmd:comparelevels("01_Colombo|02_Kandy|03_Jaffna")}.  Without this option,
+valid observed comparison levels are used in their natural order.
+
+{pmore}
+Comparison variables must be selected and must have a recognizable binary
+affirmative response.  Missing values, special response codes, {ifin}, and
+weights follow the same rules as the corresponding binary cards.  Confidence
+interval whiskers are never drawn on these binary comparison bars, including
+when {opt ci} is specified.
+
+
 {dlgtab:Controls, messages, and charts}
 
 {phang}
@@ -249,6 +316,35 @@ are not selected automatically.
 override compatible automatic chart choices.  A variable may appear in only
 one override.  With a main {it:varlist} or {opt questions()} selection, an
 override must also be selected there or in {opt customvars()}.
+
+{phang}
+Small integer-valued numeric variables are recognized automatically as
+discrete counts when their question text and observed support strongly look
+like counts, such as number of workers or household members.  Detection is
+conservative and uses the actual analysis sample after {ifin}, weights, and
+missing-code exclusions.  The distribution displays one bar for every integer
+in the range, including zero-frequency gaps, instead of fractional histogram
+bins.  Negative questionnaire response codes are excluded, Tukey outlier
+values are highlighted, and the numeric Stats tab remains available.
+
+{phang}
+{opt discrete(varlist)} forces numeric counts, bounded scores, or numeric
+category codes to use an exact-value discrete distribution.  Forced variables
+may have no more than {opt maxcategories()} valid values.  {opt continuous(varlist)}
+forces numeric variables to use a histogram and numeric Stats table, even when
+all observed values are integers or a Stata value label is attached.  Both
+options require numeric, non-date variables that are also selected for the
+dashboard.  Examples:
+
+{phang2}{cmd:discrete(employees visits) continuous(revenue productivity_score)}
+
+{phang}
+{opt noautodiscrete} disables only automatic discrete-count detection.
+Explicit {opt discrete()}, {opt continuous()}, and chart overrides still
+apply.  {opt histograms()} explicitly requests continuous behavior and may be
+combined redundantly with {opt continuous()}; it conflicts with
+{opt discrete()}.  {opt bars()} and {opt donuts()} may accompany
+{opt discrete()} but conflict with {opt continuous()}.
 
 {phang}
 {opt maxcategories(#)} sets the maximum categories for filters and categorical
@@ -543,13 +639,25 @@ does not upload data.
 
 {phang2}{cmd:. surveye sales using "questionnaire.html", saving("focused.html") customvars(qc_score risk_band) addtosections("3: qc_score|Quality checks: risk_band") replace}
 
-{pstd}{bf:7. Keep figures clean or request confidence intervals}
+{pstd}{bf:7. Combine related suffix variables in one figure}
+
+{phang2}{cmd:. surveye srib8a srib8b srib8c using "questionnaire.html", saving("digital.html") vargroups("Digital channels:: srib8a srib8b srib8c") replace}
+
+{pstd}{bf:8. Compare affirmative shares across locations}
+
+{phang2}{cmd:. surveye srib8a srib8b srib8c using "questionnaire.html", saving("digital_by_city.html") compare(srib8a srib8b srib8c) compareby(city) comparelevels("01_Colombo|02_Kandy|03_Jaffna") comparetitle("Digital access by city") replace}
+
+{pstd}{bf:9. Show exact count values or force a histogram}
+
+{phang2}{cmd:. surveye employees visits revenue using "questionnaire.html", saving("numeric.html") discrete(employees visits) continuous(revenue) replace}
+
+{pstd}{bf:10. Keep figures clean or request confidence intervals}
 
 {phang2}{cmd:. surveye sector ownership using "questionnaire.html", saving("shares_clean.html") replace}
 
 {phang2}{cmd:. surveye sector ownership using "questionnaire.html", saving("shares_90.html") ci level(90) replace}
 
-{pstd}{bf:8. Apply native Stata weights}
+{pstd}{bf:11. Apply native Stata weights}
 
 {phang2}{cmd:. surveye sector sales using "questionnaire.html" [aw=wmedian], saving("analytic.html") replace}
 
@@ -559,23 +667,23 @@ does not upload data.
 
 {phang2}{cmd:. surveye sector sales using "questionnaire.html" [pw=pop], saving("weighted.html") filters(region) note("Intervals use an effective-sample-size approximation.") replace}
 
-{pstd}{bf:9. Build an Arabic right-to-left dashboard}
+{pstd}{bf:12. Build an Arabic right-to-left dashboard}
 
 {phang2}{cmd:. surveye using "questionnaire_ar.html", saving("dashboard_ar.html") uilanguage(ar) direction(auto) replace open}
 
-{pstd}{bf:10. Build an Urdu right-to-left dashboard}
+{pstd}{bf:13. Build an Urdu right-to-left dashboard}
 
 {phang2}{cmd:. surveye using "questionnaire_ur.html", saving("dashboard_ur.html") uilanguage(urdu) direction(rtl) replace open}
 
-{pstd}{bf:11. Show every GPS record over Google Hybrid}
+{pstd}{bf:14. Show every GPS record over Google Hybrid}
 
 {phang2}{cmd:. surveye sector sales using "questionnaire.html", saving("mapped.html") latitude(gps_latitude) longitude(gps_longitude) country(KEN) boundaries("World Bank Official Boundaries - Admin 2.zip") maplevel(admin2) maptype(points) basemap(google_hybrid) mapby(sector) maptitle("Interview locations") replace open}
 
-{pstd}{bf:12. Use OpenStreetMap or an aggregated point display}
+{pstd}{bf:15. Use OpenStreetMap or an aggregated point display}
 
 {phang2}{cmd:. surveye sector using "questionnaire.html", saving("clustered.html") latitude(gps_latitude) longitude(gps_longitude) country(KEN) maptype(cluster) basemap(osm) replace}
 
-{pstd}{bf:13. Preview a translated questionnaire}
+{pstd}{bf:16. Preview a translated questionnaire}
 
 {phang2}{cmd:. surveye demo using "siNhl Global_informal2026.html", saving("sinhala_preview.html") n(250) seed(42) theme(clean) replace open}
 
@@ -625,7 +733,7 @@ If the Java engine is missing or Stata reports {cmd:r(5100)}, verify the package
 
 {phang2}{cmd:. which surveye}
 
-{phang2}{cmd:. findfile surveye_2_0_0.jar}
+{phang2}{cmd:. findfile surveye_2_1_0.jar}
 
 {phang2}{cmd:. java query}
 

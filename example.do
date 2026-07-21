@@ -1,4 +1,4 @@
-*! SurvEye example 2.0.0 20jul2026
+*! SurvEye example 2.1.0 20jul2026
 version 16.0
 clear all
 set more off
@@ -99,6 +99,37 @@ title.  Only variables declared in customvars() may be moved:
     surveye sales using "questionnaire.html", ///
         saving("focused.html") customvars(qc_score risk_band) ///
         addtosections("3: qc_score|Quality checks: risk_band") replace
+
+Combine a related suffix family in one compact figure.  Compatible families
+are detected automatically; vargroups() gives the displayed title and exact
+membership.  ungroupvars() protects selected exceptions, while noautogroups
+turns off automatic grouping everywhere:
+
+    surveye srib8a srib8b srib8c using "questionnaire.html", ///
+        saving("digital.html") ///
+        vargroups("Digital channels:: srib8a srib8b srib8c") replace
+
+    surveye srib8a srib8b srib8c ownership using "questionnaire.html", ///
+        saving("separate.html") ungroupvars(srib8a srib8b srib8c) replace
+
+Compare the affirmative shares of up to 12 selected binary indicators across
+the requested values of a grouping variable.  compareby() is required, but it
+does not create its own indicator card.  Binary comparison bars never receive
+CI whiskers:
+
+    surveye srib8a srib8b srib8c using "questionnaire.html", ///
+        saving("digital_by_city.html") ///
+        compare(srib8a srib8b srib8c) compareby(city) ///
+        comparelevels("01_Colombo|02_Kandy|03_Jaffna") ///
+        comparetitle("Digital access by city") replace
+
+Small nonnegative integer distributions are recognized as discrete counts.
+Force exact observed-value bars or a continuous histogram when subject-matter
+meaning should override that automatic choice:
+
+    surveye employees visits revenue using "questionnaire.html", ///
+        saving("numeric_types.html") ///
+        discrete(employees visits) continuous(revenue) replace
 
 Confidence intervals are off by default.  Request 90% Wilson intervals for
 ordinary categorical and multiselect bars with ci level(90).  Binary yes/no,

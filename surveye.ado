@@ -1,4 +1,4 @@
-*! version 2.0.0 20jul2026
+*! version 2.1.0 20jul2026
 
 program define surveye, rclass
     version 16.0
@@ -48,6 +48,10 @@ program define _surveye_main, rclass
           EXclude(string asis) FILters(varlist) HIGHlights(varlist) ///
           KEYMessages(string) CUSTOMSections(string)                 ///
           CUSTOMVars(varlist) ADDToSections(string)                  ///
+          VARGroups(string asis) NOAUTOGroups UNGROUPVars(varlist)   ///
+          DISCrete(varlist) CONTinuous(varlist) NOAUTODISCrete      ///
+          COMPARE(varlist) COMPAREBy(varname)                        ///
+          COMPARETitle(string) COMPARELevels(string asis)            ///
           BARs(varlist) DONUTs(varlist) HISTograms(varlist)          ///
           MAXCategories(integer 12) MAXPanels(integer 100)          ///
           MISSingcodes(numlist missingokay)                         ///
@@ -279,6 +283,153 @@ program define _surveye_main, rclass
     local selectedvars `"`varlist' `questionlist'"'
     local selectedvars : list uniq selectedvars
 
+    // Related questionnaire items are grouped automatically by the engine.
+    // Manual groups use the deliberately simple Title:: varlist grammar.  Do
+    // the Stata varlist expansion here so ranges and wildcards have their
+    // usual Stata meaning and Java receives an unambiguous member list.
+    local normalizedgroups ""
+    local groupedvars ""
+    local grouprest `"`macval(vargroups)'"'
+    while strtrim(`"`macval(grouprest)'"') != "" {
+        local pipe = strpos(`"`macval(grouprest)'"', "|")
+        if `pipe' > 0 {
+            local onegroup = strtrim(substr(`"`macval(grouprest)'"', 1, `pipe' - 1))
+            local grouprest = substr(`"`macval(grouprest)'"', `pipe' + 1, .)
+        }
+        else {
+            local onegroup = strtrim(`"`macval(grouprest)'"')
+            local grouprest ""
+        }
+
+        local divider = strpos(`"`macval(onegroup)'"', "::")
+        if `divider' <= 1 {
+            display as error "surveye: vargroups() groups must use Title:: varlist"
+            display as error `"Invalid group: `macval(onegroup)'"'
+            exit 198
+        }
+        local grouptitle = strtrim(substr(`"`macval(onegroup)'"', 1, `divider' - 1))
+        local groupmembersraw = strtrim(substr(`"`macval(onegroup)'"', `divider' + 2, .))
+        if `"`macval(grouptitle)'"' == "" | `"`macval(groupmembersraw)'"' == "" {
+            display as error "surveye: every vargroups() group requires a title and at least two variables"
+            exit 198
+        }
+
+        local expandedmembers ""
+        capture unab expandedmembers : `groupmembersraw'
+        if _rc {
+            display as error `"surveye: invalid or unavailable varlist in vargroups(): `macval(groupmembersraw)'"'
+            exit 198
+        }
+        local ngroupmembers : word count `expandedmembers'
+        if `ngroupmembers' < 2 {
+            display as error `"surveye: group `macval(grouptitle)' requires at least two variables"'
+            exit 198
+        }
+        local duplicate : list groupedvars & expandedmembers
+        if `"`duplicate'"' != "" {
+            display as error `"surveye: a variable may appear in only one vargroups() group: `duplicate'"'
+            exit 198
+        }
+        local groupedvars `"`groupedvars' `expandedmembers'"'
+        local groupedvars : list uniq groupedvars
+        if `"`macval(normalizedgroups)'"' == "" ///
+            local normalizedgroups `"`macval(grouptitle)'::`expandedmembers'"'
+        else local normalizedgroups `"`macval(normalizedgroups)'|`macval(grouptitle)'::`expandedmembers'"'
+    }
+    local vargroups `"`macval(normalizedgroups)'"'
+
+    local ungroupvars : list uniq ungroupvars
+    local discrete : list uniq discrete
+    local continuous : list uniq continuous
+    local compare : list uniq compare
+
+    local overlap : list groupedvars & ungroupvars
+    if `"`overlap'"' != "" {
+        display as error `"surveye: variables cannot be both manually grouped and ungrouped: `overlap'"'
+        exit 198
+    }
+
+    local overlap : list discrete & continuous
+    if `"`overlap'"' != "" {
+        display as error `"surveye: variables cannot be both discrete and continuous: `overlap'"'
+        exit 198
+    }
+
+    foreach typeopt in discrete continuous {
+        foreach variable of local `typeopt' {
+            capture confirm numeric variable `variable'
+            if _rc {
+                display as error `"surveye: `typeopt'(`variable') requires a numeric variable"'
+                exit 109
+            }
+            local variableformat : format `variable'
+            if regexm(lower(strtrim(`"`variableformat'"')), "^%t[bcdwmqhy]") {
+                display as error `"surveye: date/time variable `variable' may not be specified in `typeopt'()"'
+                exit 198
+            }
+        }
+    }
+
+    local overlap : list discrete & histograms
+    if `"`overlap'"' != "" {
+        display as error `"surveye: discrete() and histograms() give conflicting instructions for: `overlap'"'
+        exit 198
+    }
+    local overlap : list continuous & bars
+    if `"`overlap'"' == "" local overlap : list continuous & donuts
+    if `"`overlap'"' != "" {
+        display as error `"surveye: continuous() conflicts with a categorical chart override for: `overlap'"'
+        exit 198
+    }
+
+    local ncompare : word count `compare'
+    if `ncompare' > 12 {
+        display as error "surveye: compare() accepts at most 12 variables"
+        exit 198
+    }
+    if `"`compare'"' != "" & `"`compareby'"' == "" {
+        display as error "surveye: compare() requires compareby()"
+        exit 198
+    }
+    if `"`compare'"' == "" & ///
+        (`"`compareby'"' != "" | `"`comparetitle'"' != "" | `"`comparelevels'"' != "") {
+        display as error "surveye: compareby(), comparetitle(), and comparelevels() require compare()"
+        exit 198
+    }
+    if `"`compare'"' != "" {
+        local overlap : list compare & compareby
+        if `"`overlap'"' != "" {
+            display as error "surveye: compareby() may not also be one of the compare() variables"
+            exit 198
+        }
+    }
+
+    local overlap : list groupedvars & exclude
+    if `"`overlap'"' == "" local overlap : list ungroupvars & exclude
+    if `"`overlap'"' == "" local overlap : list discrete & exclude
+    if `"`overlap'"' == "" local overlap : list continuous & exclude
+    if `"`overlap'"' == "" local overlap : list compare & exclude
+    if `"`overlap'"' != "" {
+        display as error `"surveye: grouping, type, or comparison options cannot use excluded variables: `overlap'"'
+        exit 198
+    }
+
+    // With a focused selection, presentation options may only refer to a
+    // selected questionnaire item or a variable declared in customvars().
+    if `"`selectedvars'"' != "" {
+        local allowedselected `"`selectedvars' `customvars'"'
+        local allowedselected : list uniq allowedselected
+        foreach selectionopt in groupedvars ungroupvars discrete continuous compare {
+            local notselected : list `selectionopt' - allowedselected
+            if `"`notselected'"' != "" {
+                local optionname "`selectionopt'()"
+                if `"`selectionopt'"' == "groupedvars" local optionname "vargroups()"
+                display as error `"surveye: `optionname' contains variable(s) not selected by the main varlist, questions(), or customvars(): `notselected'"'
+                exit 198
+            }
+        }
+    }
+
     local overlap : list customvars & exclude
     if `"`overlap'"' != "" {
         display as error `"surveye: customvars() variables cannot also be excluded: `overlap'"'
@@ -289,6 +440,8 @@ program define _surveye_main, rclass
     local showemptyflag = (`"`showempty'"' != "")
     local replaceflag = (`"`replace'"' != "")
     local showciflag = (`"`ci'"' != "")
+    local noautogroupsflag = (`"`noautogroups'"' != "")
+    local noautodiscreteflag = (`"`noautodiscrete'"' != "")
 
     // Explicit chart-type overrides must be unambiguous.
     local overlap : list bars & donuts
@@ -429,7 +582,7 @@ program define _surveye_main, rclass
         }
     }
 
-    local exportvars `"`exportvars' `customvars' `filters' `highlights' `latitude' `longitude' `mapby' `weightvar'"'
+    local exportvars `"`exportvars' `customvars' `filters' `highlights' `latitude' `longitude' `mapby' `compare' `compareby' `weightvar'"'
     local exportvars : list uniq exportvars
 
     if `"`exportvars'"' == "" {
@@ -482,6 +635,16 @@ program define _surveye_main, rclass
     _surveye_cfgline `cfg' customsections   `"`macval(customsections)'"'
     _surveye_cfgline `cfg' customvars       `"`macval(customvars)'"'
     _surveye_cfgline `cfg' addtosections    `"`macval(addtosections)'"'
+    _surveye_cfgline `cfg' vargroups        `"`macval(vargroups)'"'
+    _surveye_cfgline `cfg' noautogroups     `"`macval(noautogroupsflag)'"'
+    _surveye_cfgline `cfg' ungroupvars      `"`macval(ungroupvars)'"'
+    _surveye_cfgline `cfg' discrete         `"`macval(discrete)'"'
+    _surveye_cfgline `cfg' continuous       `"`macval(continuous)'"'
+    _surveye_cfgline `cfg' noautodiscrete   `"`macval(noautodiscreteflag)'"'
+    _surveye_cfgline `cfg' compare          `"`macval(compare)'"'
+    _surveye_cfgline `cfg' compareby        `"`macval(compareby)'"'
+    _surveye_cfgline `cfg' comparetitle     `"`macval(comparetitle)'"'
+    _surveye_cfgline `cfg' comparelevels    `"`macval(comparelevels)'"'
     _surveye_cfgline `cfg' bars             `"`macval(bars)'"'
     _surveye_cfgline `cfg' donuts           `"`macval(donuts)'"'
     _surveye_cfgline `cfg' histograms       `"`macval(histograms)'"'
@@ -521,7 +684,7 @@ program define _surveye_main, rclass
     // physical Stata column, so add only selected names that actually exist.
     // This lets data-only variables selected through questions() retain a
     // meaningful Stata label without breaking expanded multiselects.
-    local metadatavars `"`customvars' `filters' `highlights' `mapby'"'
+    local metadatavars `"`customvars' `filters' `highlights' `mapby' `compareby'"'
     foreach metaselected of local selectedvars {
         capture confirm variable `metaselected'
         if !_rc local metadatavars `"`metadatavars' `metaselected'"'
@@ -591,7 +754,7 @@ program define _surveye_main, rclass
     if missing(`outN') return scalar N = `sample_N'
     return scalar sample_N = `sample_N'
     return scalar weighted = `weighted'
-    return local package_version "2.0.0"
+    return local package_version "2.1.0"
 end
 
 
@@ -689,7 +852,7 @@ program define _surveye_describe, rclass
     _surveye_read_status using `"`statusfile'"'
     return add
     if `"`macval(outquestionnaire)'"' == "" return local questionnaire `"`macval(using)'"'
-    return local package_version "2.0.0"
+    return local package_version "2.1.0"
 end
 
 
@@ -874,7 +1037,7 @@ program define _surveye_demo, rclass
         return local filename `"`macval(saving)'"'
     }
     if `"`macval(outquestionnaire)'"' == "" return local questionnaire `"`macval(using)'"'
-    return local package_version "2.0.0"
+    return local package_version "2.1.0"
 end
 
 
@@ -945,7 +1108,7 @@ program define _surveye_invoke, rclass
     version 16.0
     args configfile statusfile diagnostics
 
-    local jarname "surveye_2_0_0.jar"
+    local jarname "surveye_2_1_0.jar"
     capture findfile `jarname'
     if _rc {
         display as error "`jarname' is not installed on the Stata ado-path"
@@ -1017,6 +1180,9 @@ program define _surveye_read_status, rclass
     local title ""
     local N ""
     local k_charted ""
+    local k_panels ""
+    local k_families ""
+    local k_comparisons ""
     local k_skipped ""
     local k_sections ""
     local k_filters ""
@@ -1052,6 +1218,9 @@ program define _surveye_read_status, rclass
             else if `"`key'"' == "title"          local title `"`macval(value)'"'
             else if `"`key'"' == "n"              local N `"`macval(value)'"'
             else if inlist(`"`key'"', "k_charted", "k_chartable") local k_charted `"`macval(value)'"'
+            else if `"`key'"' == "k_panels"       local k_panels `"`macval(value)'"'
+            else if `"`key'"' == "k_families"     local k_families `"`macval(value)'"'
+            else if `"`key'"' == "k_comparisons"  local k_comparisons `"`macval(value)'"'
             else if `"`key'"' == "k_skipped"      local k_skipped `"`macval(value)'"'
             else if `"`key'"' == "k_sections"     local k_sections `"`macval(value)'"'
             else if `"`key'"' == "k_filters"      local k_filters `"`macval(value)'"'
@@ -1097,7 +1266,7 @@ program define _surveye_read_status, rclass
     return local filter_candidates `"`macval(filter_candidates)'"'
     return local gps_candidates `"`macval(gps_candidates)'"'
 
-    foreach scalar in N k_charted k_skipped k_sections k_filters k_questions warnings ///
+    foreach scalar in N k_charted k_panels k_families k_comparisons k_skipped k_sections k_filters k_questions warnings ///
         weighted has_map map_N map_missing map_outside {
         // Resolve the loop-selected local by name, without recursively
         // expanding anything that may be stored in its value.

@@ -5,6 +5,33 @@ development names are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and releases use
 semantic versioning.
 
+## [2.1.0] — 2026-07-20
+
+### Added
+
+- Added automatic related-variable families for compatible binary letter-suffix items such as `srib8a srib8b srib8c`. Added `vargroups()`, `ungroupvars()`, and `noautogroups` for explicit placement, opt-out, and manual grouping.
+- Added `compare()` with required `compareby()`, optional `comparetitle()`, and `comparelevels()` for full-width grouped horizontal comparisons of up to 12 binary indicators across two to five subgroups.
+- Added exact-value displays for small integer counts and `discrete()`, `continuous()`, and `noautodiscrete` controls. Discrete charts retain zero-frequency integer gaps, show a weighted median, flag Tukey outliers, and keep a complete Stats tab.
+
+### Changed
+
+- Gave grouped families and comparisons a symmetric full-width layout with direct percentage labels, stable colors, subgroup-specific valid denominators, and native Stata-weight support.
+- Kept confidence intervals off binary family and subgroup-comparison panels, including when `ci` is requested; ordinary eligible categorical bars retain opt-in intervals.
+- Balanced incomplete card rows into deliberate three-, two-, or one-card compartments and retained compact chart heights.
+- Replaced the tall sticky filter block with a compact disclosure toolbar that starts collapsed and preserves active filters when closed.
+- Set normal Chart.js transitions to 800 milliseconds and delayed chart construction until a panel is visible so animations do not finish offscreen. Reduced-motion users still receive no animation.
+
+### Fixed
+
+- Replaced Survey Solutions' generic calculated-variable labels with actual variable names when no meaningful label exists.
+- Excluded questionnaire-declared negative special codes and configured missing codes from numeric distributions, medians, statistics, outlier detection, and numeric filter choices while retaining them in categorical figures.
+- Corrected custom numeric value-label lookup so attached label definitions no longer raise Stata `r(111)`.
+- Applied `maxpanels()` only after family construction so a grouped panel is never split, and made explicit comparisons take precedence over automatic grouping.
+
+### Compatibility
+
+- Existing 2.0 syntax remains valid. Automatic grouping is conservative and affects only compatible binary suffix families; use `noautogroups` to retain one panel per variable.
+
 ## [2.0.0] — 2026-07-20
 
 ### Added
@@ -29,19 +56,12 @@ semantic versioning.
 - Added native importance-weight support for descriptive estimates. Because iweights have no general sampling interpretation, requested confidence intervals are suppressed automatically with an explanatory note.
 - Standardized weight validation: one numeric variable is allowed, negatives are rejected, fweights must be integers, and zero or missing weights are excluded from the analysis sample for every weight type.
 - Changed confidence intervals from automatic to opt-in so dense dashboards remain visually clear. Binary yes/no, answered/missing completion, and donut cards never display CI text or whiskers, even when `ci` is supplied.
-- Refreshed the visual grammar with a restrained World Bank chart palette: blue for ordinary comparisons, purple for distributions, navy for time trends, coral for median/outlier guides, neutral binary alternatives, and muted special values. Category and map colors now remain stable when filters change.
-- Balanced incomplete card rows into deliberate three-, two-, or one-card compartments, stretched card edges within each row, and retained the compact chart heights. Normal Chart.js transitions now use 800 milliseconds; reduced-motion users still receive no animation.
-- Replaced the tall sticky search/filter block with a compact toolbar that starts collapsed. An accessible Show/Hide filters disclosure reveals the full controls, preserves selections when closed, and keeps Reset all, the live interview count, and any active-filter count visible in the toolbar.
-- Delayed chart construction until a chart is genuinely visible, deferred it while the browser tab is hidden, and removed eager whole-section rendering so the 800 millisecond transition is seen instead of finishing offscreen.
 - Retained the compact visuals, custom-variable placement, optional confidence intervals, outlier-aware Stats tab, and Leaflet/Google map behavior introduced in 1.2.0.
 - Localized generated Additional indicators, Other indicators, and untitled Key message headings instead of leaving English fallback text in Arabic or Urdu dashboards.
 
 ### Fixed
 
-- Corrected custom numeric value-label lookup in Stata: the attached value-label definition is now resolved by name, with a safe raw-code fallback for missing/orphan definitions, instead of being mistaken for a dataset variable and raising `r(111)`.
 - Corrected the public and parser-facing weight order to Stata's `using questionnaire.html [weight], options` grammar and added a static regression guard for every shipped example.
-- Replaced Survey Solutions' generic calculated-variable labels with the actual variable name across panels, filters, highlights, and metadata, while preserving meaningful Stata and questionnaire labels.
-- Kept explicitly configured missing codes out of categorical, multiselect, numeric, date, filter, and privacy-reduced completion calculations. Questionnaire-declared negative special response codes remain visible in categorical figures but are now excluded automatically from numeric distributions, statistics, outlier detection, and numeric filter choices; nonnegative substantive shortcuts remain valid.
 - Preserved date formats and missing/special metadata for custom, filter-only, and highlight variables, including the `maxcategories(12)` boundary with 12 valid filter levels plus an excluded code.
 - Corrected dark-theme chart, brand, and numeric-tab contrast and kept percentage/share demo values in their natural 0–100 range.
 - Serialized affirmative and negative response codes from the Java parser so Turkish, Russian, Chinese, Japanese, Arabic, Urdu, Sinhala, and other recognized binary labels receive the correct colors without relying on a narrower browser-side translation list.

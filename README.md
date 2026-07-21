@@ -9,11 +9,12 @@
 [Examples](example.do) ·
 [Changelog](CHANGELOG.md)
 
-SurvEye is a Stata 16+ tool, distributed as the command `surveye`, that turns a Survey Solutions questionnaire HTML file and the corresponding Stata data into a polished, interactive HTML dashboard. Questionnaire text supplies the labels, sections, response order, and categories; the command adds compact charts, filters, messages, custom data variables, native Stata weights, optional confidence intervals, outlier-aware numeric summaries, a localized right-to-left interface, and an optional Leaflet country map.
+SurvEye is a Stata 16+ tool, distributed as the command `surveye`, that turns a Survey Solutions questionnaire HTML file and the corresponding Stata data into a polished, interactive HTML dashboard. Questionnaire text supplies the labels, sections, response order, and categories; the command adds compact charts, smart related-variable families, explicit subgroup comparisons, filters, messages, custom data variables, native Stata weights, optional confidence intervals, outlier-aware numeric summaries, a localized right-to-left interface, and an optional Leaflet country map.
 
 The command has deliberately useful defaults:
 
 - the questionnaire determines the initial organization and chart types;
+- compatible suffix families such as `srib8a srib8b srib8c` are combined automatically, with manual grouping and opt-out controls available;
 - `density(compact)` keeps large instruments readable without excessive scrolling;
 - categorical cards are kept uncluttered by default; add `ci` when intervals are useful on eligible bars;
 - numeric cards combine an outlier-aware distribution with a detailed **Stats** tab;
@@ -42,11 +43,11 @@ Verify the wrapper, release-specific engine, and help file:
 
 ```stata
 which surveye
-findfile surveye_2_0_0.jar
+findfile surveye_2_1_0.jar
 help surveye
 ```
 
-The package marks its JARs with uppercase `F` records so `net install` places both files on the ado-path. Stata uses `surveye_2_0_0.jar`; the byte-identical `surveye.jar` remains available for command-line and development use. After replacing an earlier copy, type `discard` or restart Stata.
+The package marks its JARs with uppercase `F` records so `net install` places both files on the ado-path. Stata uses `surveye_2_1_0.jar`; the byte-identical `surveye.jar` remains available for command-line and development use. After replacing an earlier copy, type `discard` or restart Stata.
 
 ### Requirements
 
@@ -68,7 +69,7 @@ plain text in a browser:
 - <https://raw.githubusercontent.com/arehman10/SurvEye/main/surveye.pkg>
 
 Then retry the copy-ready command above. The package files must be at the
-repository root, not inside a ZIP file or an enclosing `surveye-2.0.0` folder.
+repository root, not inside a ZIP file or an enclosing `surveye-2.1.0` folder.
 If an earlier SurvEye JAR was already used in the current Stata session, fully
 restart Stata after reinstalling; the JVM can retain a loaded JAR until Stata
 exits. Regenerate previously created dashboards to receive the new interface.
@@ -124,7 +125,9 @@ The weight specification is optional and must name one variable. Use Stata's nat
 | Add data-only variables | `customvars()`, `addtosections()` |
 | Add controls | `filters()`, `highlights()`, `maxcategories()` |
 | Add narrative | `keymessages()`, `customsections()`, `note()`, `source()`, `disclaimer()` |
-| Control figures | `bars()`, `donuts()`, `histograms()`, `missingcodes()`, `ci`, `level()` |
+| Group related items | `vargroups()`, `ungroupvars()`, `noautogroups` |
+| Compare binary outcomes | `compare()`, `compareby()`, `comparetitle()`, `comparelevels()` |
+| Control figures | `bars()`, `donuts()`, `histograms()`, `discrete()`, `continuous()`, `noautodiscrete`, `missingcodes()`, `ci`, `level()` |
 | Add a map | `latitude()`, `longitude()`, `country()`, `boundaries()`, `maplevel()`, `maptype()`, `basemap()`, `mapby()`, `maptitle()` |
 | Set language and appearance | `uilanguage()`, `direction()`, `title()`, `subtitle()`, `logo()`, `theme()`, `density()` |
 | Manage output | `saving()`, `replace`, `open`, `diagnostics()` |
@@ -160,7 +163,70 @@ text are preserved when the panel is collapsed. The toolbar always keeps
 appears when one or more filter choices are selected. **Reset all** clears both
 the response filters and the indicator search.
 
+## Put related variables together
+
+SurvEye automatically recognizes conservative, compatible binary suffix families such
+as `srib8a srib8b srib8c` or `service_a service_b service_c` in the same
+questionnaire section. Their question text becomes the row labels in one compact
+figure. Expanded multiselect storage variables such as `services__1` and
+`services__2` are never mistaken for a family.
+
+Define a family yourself with `Title:: varlist`; separate multiple definitions
+with `|`:
+
+```stata
+surveye srib8a srib8b srib8c using "questionnaire.html", ///
+    saving("digital.html") ///
+    vargroups("Digital channels:: srib8a srib8b srib8c") replace
+```
+
+The variables must already be selected. Stata expands ranges and wildcards
+inside each member list. `ungroupvars()` keeps selected variables as individual
+cards while automatic grouping continues elsewhere; `noautogroups` disables
+all automatic families but leaves explicit `vargroups()` intact. Custom
+variables can participate after they are declared with `customvars()` and
+placed together with `addtosections()` or `customsections()`.
+
+For a direct subgroup comparison, `compare()` accepts up to 12 selected binary
+variables and requires `compareby()`. It draws grouped horizontal bars of each
+item's affirmative share. `comparelevels()` limits and orders the comparison
+groups using exact raw values or displayed labels separated by `|`, and
+`comparetitle()` supplies a concise heading:
+
+```stata
+surveye srib8a srib8b srib8c using "questionnaire.html", ///
+    saving("digital_by_city.html") ///
+    compare(srib8a srib8b srib8c) compareby(city) ///
+    comparelevels("01_Colombo|02_Kandy|03_Jaffna") ///
+    comparetitle("Digital access by city") replace
+```
+
+`compareby()` is included in the temporary export without becoming its own
+indicator card. Comparisons use the normal sample, missing-code, and weight
+rules. Because the displayed outcomes are binary affirmative shares, confidence
+interval whiskers are not added to these bars even when `ci` is requested.
+
 Automatic chart choices emphasize compact comparison: horizontal percentage bars for categorical and multiselect items, split bars for binary and answered/missing items, histograms for numeric variables, and time distributions for dates. Donuts are opt-in through `donuts()`. `maxcategories()` combines less frequent levels into **Other** without changing the valid-response denominator.
+
+Small nonnegative whole-number variables are recognized as discrete counts
+when their labels and observed support strongly look like counts (for example,
+“How many workers?” or household size). Detection is conservative and uses the
+analysis sample after missing-code restrictions. Their distribution uses one
+bar per exact value, including zero-frequency gaps, while retaining the Stats
+tab. Negative questionnaire response codes are excluded, and Tukey outlier
+values are marked in coral. Use `discrete()` to force an exact-value display,
+`continuous()` to force a histogram, or `noautodiscrete` to disable only the
+automatic detection:
+
+```stata
+surveye employees visits revenue using "questionnaire.html", ///
+    saving("numeric.html") ///
+    discrete(employees visits) continuous(revenue) replace
+```
+
+`histograms()` is compatible with `continuous()` and overrides automatic
+discrete detection. It conflicts with `discrete()`. Conversely, `bars()` and
+`donuts()` may accompany `discrete()` but conflict with `continuous()`.
 
 The chart palette uses consistent roles rather than arbitrary rainbow coloring: ordinary comparisons are blue, numeric distributions purple, date trends navy, and median/outlier guides coral. Generic Yes/No cards use blue and a neutral stone so color does not imply that every Yes is good or every No is bad; answered/missing cards use green and gray. Special values remain visibly muted, and category/map colors are assigned from the full response order so filtering does not make a category change color. Cards are packed into balanced three-, two-, or one-card rows, with equal edges inside each row and no extra page height.
 
@@ -360,7 +426,7 @@ For a map-enabled dashboard, the harness should allow or deliberately stub the d
 
 - `surveye.ado` — Stata command and Java bridge
 - `surveye.sthlp` — complete Stata help
-- `surveye_2_0_0.jar` — release-specific JAR used by Stata
+- `surveye_2_1_0.jar` — release-specific JAR used by Stata
 - `surveye.jar` — byte-identical conventional JAR
 - `surveye.pkg` and `stata.toc` — Stata package metadata
 - `example.do` — runnable starter and recipes
