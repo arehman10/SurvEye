@@ -9,6 +9,21 @@
 [Examples](example.do) ·
 [Changelog](CHANGELOG.md)
 
+![SurvEye dashboard — masthead with byline, sticky controls, and KPI cards on the warm archival paper](docs/screenshots/hero-light.png)
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/hero-dark.png" alt="The same dashboard after the one-click runtime dark switch"><br><sub>Runtime dark mode — one click, every chart re-skins</sub></td>
+    <td width="50%"><img src="docs/screenshots/profile-table.png" alt="City profile table with lens bars under every share cell and a gold benchmark row"><br><sub>Profile table with share lens bars and a benchmark row</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/charts.png" alt="A chart section with a histogram, mean plus three SD guide, and yes/no split bars"><br><sub>Numbered sections, live-filtered charts, per-chart PNG export</sub></td>
+    <td width="50%"><img src="docs/screenshots/surveycto.png" alt="Simulated-data preview built from a SurveyCTO form definition with surveye demo"><br><sub><code>surveye demo</code> on a SurveyCTO form definition — no data required</sub></td>
+  </tr>
+</table>
+
+<sub>All screenshots are reproducible from the repository alone: the bundled feature preview (`examples/feature_preview_2_2_0.html`) and the SurveyCTO demo (`examples/surveycto_demo_preview.html`).</sub>
+
 SurvEye is a Stata 16+ tool, distributed as the command `surveye`, that turns a survey questionnaire—a Survey Solutions questionnaire preview (HTML), a SurveyCTO form definition (XML), or a SurveyCTO printable form (HTML)—and the corresponding Stata data into a polished, interactive HTML dashboard. Questionnaire text supplies the labels, sections, response order, and categories; the command adds compact charts, smart related-variable families, explicit subgroup comparisons, filters, messages, custom data variables, native Stata weights, optional confidence intervals, live-filtered numeric summaries, optional profile tables, local-currency/USD switching, a localized right-to-left interface, and an optional Leaflet country map.
 
 The command has deliberately useful defaults:
@@ -607,6 +622,7 @@ For a map-enabled dashboard, the harness should allow or deliberately stub the d
 - `tests/stata_smoke.do` — licensed-Stata integration checks
 - `tests/run_surveycto_tests.sh` — SurveyCTO XML and printable-form checks (fixtures included)
 - `examples/surveycto_demo_preview.html` — simulated dashboard built from the bundled SurveyCTO form definition
+- `docs/screenshots/` — rendered dashboard screenshots used by this README
 - `examples/sample_dashboard.html` — simulated browser-ready feature preview
 - `tests/sample_dashboard_config.tsv` — reproducible configuration for that preview
 - `GITHUB_UPLOAD.md`, `PUBLISHING.md`, and `release.sh` — GitHub/SSC release instructions and clean archive builder

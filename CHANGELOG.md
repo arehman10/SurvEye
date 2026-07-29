@@ -43,6 +43,12 @@ dependency are introduced. The release-specific engine is now
   the printed table layout end to end, both negative paths, and Survey
   Solutions regression, and runs in CI.
 
+### Documentation
+- The README opens with a rendered screenshot gallery (`docs/screenshots/`):
+  the light and dark mastheads, the profile table with lens bars, a chart
+  section, and a `surveye demo` built from the bundled SurveyCTO form
+  definition — all captured from artifacts that ship in the repository.
+
 ### Fixed
 - Refreshing the GitHub repository through the web uploader (which never
   deletes files) could leave the retired `surveye_2_1_3.jar` and the old
