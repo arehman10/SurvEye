@@ -1,0 +1,11 @@
+mode	build
+questionnaire	../fixtures/English Global_informal2026(4).html
+data	tests/numeric_visual.csv
+output	build/qa-numeric.html
+status	build/qa-numeric-status.tsv
+variables	b9 b12
+discrete	b9 b12
+maxcategories	12
+density	compact
+replace	1
+

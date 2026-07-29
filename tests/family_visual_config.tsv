@@ -1,0 +1,9 @@
+mode	build
+questionnaire	../fixtures/English Global_informal2026(4).html
+data	tests/composite_visual.csv
+output	build/qa-family.html
+status	build/qa-family-status.tsv
+variables	srib8a srib8b srib8c rf4
+maxcategories	20
+density	compact
+replace	1

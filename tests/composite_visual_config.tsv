@@ -1,0 +1,17 @@
+mode	build
+questionnaire	../fixtures/English Global_informal2026(4).html
+data	tests/composite_visual.csv
+output	build/qa-composite.html
+status	build/qa-composite-status.tsv
+variables	srib8a srib8b srib8c rf4
+compare	srib8a srib8b srib8c
+compareby	owner_gender
+comparetitle	Digital customer channels by owner gender
+comparelevels	Women-led|Men-led
+datalabel.owner_gender	Owner gender
+datatype.owner_gender	single
+datavalue.owner_gender.1	1::Women-led
+datavalue.owner_gender.2	2::Men-led
+maxcategories	20
+density	compact
+replace	1

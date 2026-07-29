@@ -1,0 +1,39 @@
+mode	demo
+demo	1
+questionnaire	../fixtures/English ES_B_READY_2025_Australia(4).html
+output	examples/sample_dashboard.html
+status	build/sample-dashboard-status.tsv
+title	Australia Enterprise Survey preview
+subtitle	Interactive simulated data for chart, table, filter, currency, weight, and GPS demonstrations
+variables	b1 b4_sp b2a d2 k6
+filters	b1
+highlights	b4_sp b2a d2
+keymessages	Preview::All values in this file are simulated|Explore::Try the weight and USD switches, table rows, filters, Stats tab, and point map
+weight	preview_weight
+weighttype	pweight
+usdvars	d2
+usdrate	1.5
+currency	AUD
+tableby	b1
+tablevars	b4_sp d2 k6
+tablestats	share:1|median|share:1
+tablelabels	Women-owned|Median annual sales|Has a bank account
+tabletitle	Legal-status profile
+tablesubtitle	Selected indicators side by side; the benchmark follows all filters except legal status.
+tabletotal	All simulated firms
+tableweightlabel	Weighted firms
+latitude	demo_latitude
+longitude	demo_longitude
+country	Australia
+maptype	points
+basemap	google_hybrid
+maptitle	Simulated interview locations
+n	300
+seed	17
+maxcategories	12
+maxpanels	20
+density	compact
+theme	worldbank
+note	USD values use a fixed demonstration rate of 1.5 AUD per USD.
+source	Simulated SurvEye preview; no real survey responses
+replace	1

@@ -1,0 +1,52 @@
+mode	build
+questionnaire	tests/fixed_multi_questionnaire.html
+data	tests/toggle_table_visual.csv
+output	build/qa-toggle-table.html
+status	build/qa-toggle-table-status.tsv
+title	SurvEye display controls and profile table
+subtitle	Weighted and unweighted estimates, local currency and USD, and live-filtered summaries
+variables	services_used
+customvars	sales workers women_led banked digital_channel practice_index
+filters	stratum region
+histograms	sales workers
+bars	women_led banked digital_channel practice_index
+weight	w
+weighttype	pweight
+usdvars	sales
+usdrate	300
+currency	LKR
+tableby	stratum
+tablevars	women_led sales banked digital_channel practice_index
+tablestats	share:1|median|share:1|share:1|mean
+tablelabels	Women-led|Median sales|Banked|Digital channel|Practice index
+tabletitle	Stratum profile
+tablesubtitle	Key indicators side by side; the benchmark follows every filter except Stratum.
+tabletotal	All surveyed locations
+tableweightlabel	Estimated firms
+datalabel.stratum	Stratum
+datatype.stratum	single
+datalabel.region	Region
+datatype.region	single
+datalabel.sales	Annual sales
+datatype.sales	numeric
+datalabel.workers	Number of workers
+datatype.workers	numeric
+datalabel.women_led	Women-led
+datatype.women_led	single
+datalabel.banked	Has a bank account
+datatype.banked	single
+datalabel.digital_channel	Uses a digital channel
+datatype.digital_channel	single
+datalabel.practice_index	Practice index
+datatype.practice_index	numeric
+datavalue.women_led.1	1::Yes
+datavalue.women_led.2	0::No
+datavalue.banked.1	1::Yes
+datavalue.banked.2	0::No
+datavalue.digital_channel.1	1::Yes
+datavalue.digital_channel.2	0::No
+maxcategories	20
+maxpanels	20
+density	compact
+theme	forest
+replace	1

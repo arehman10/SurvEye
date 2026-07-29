@@ -1,0 +1,656 @@
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Locale;
+import java.util.Map;
+
+/** Resolves the dashboard interface language/direction and supplies UI strings. */
+final class DashboardI18n {
+    static final class Resolution {
+        final String uiLanguage;
+        final String languageCode;
+        final String direction;
+
+        Resolution(String uiLanguage, String languageCode, String direction) {
+            this.uiLanguage = uiLanguage;
+            this.languageCode = languageCode;
+            this.direction = direction;
+        }
+    }
+
+    private static final Map<String, Map<String, String>> TRANSLATIONS = translations();
+
+    private DashboardI18n() {}
+
+    static Resolution resolve(QuestionnaireSpec spec, DashboardConfig config) {
+        String requestedLanguage = normalizeLanguage(config.uiLanguage);
+        String requestedDirection = normalize(config.direction, "auto");
+        String sample = questionnaireText(spec);
+        String declared = primaryLanguage(spec == null ? null : spec.language);
+
+        String uiLanguage = requestedLanguage;
+        if ("auto".equals(uiLanguage)) {
+            if ("ur".equals(declared)) uiLanguage = "urdu";
+            else if ("ar".equals(declared)) uiLanguage = "arabic";
+            else if (isArabicPredominant(sample)) uiLanguage = containsUrduSignal(sample) ? "urdu" : "arabic";
+            else uiLanguage = "english";
+        }
+
+        String direction = requestedDirection;
+        if ("auto".equals(direction)) {
+            direction = "arabic".equals(uiLanguage) || "urdu".equals(uiLanguage) ? "rtl" : "ltr";
+        }
+        String languageCode = "arabic".equals(uiLanguage) ? "ar" : "urdu".equals(uiLanguage) ? "ur" : "en";
+        return new Resolution(uiLanguage, languageCode, direction);
+    }
+
+    static String text(String language, String key) {
+        Map<String, String> selected = TRANSLATIONS.get(language);
+        if (selected != null && selected.containsKey(key)) return selected.get(key);
+        String fallback = TRANSLATIONS.get("english").get(key);
+        return fallback == null ? key : fallback;
+    }
+
+    static Map<String, String> strings(String language) {
+        Map<String, String> output = new LinkedHashMap<String, String>(TRANSLATIONS.get("english"));
+        Map<String, String> selected = TRANSLATIONS.get(language);
+        if (selected != null) output.putAll(selected);
+        return Collections.unmodifiableMap(output);
+    }
+
+    private static String normalize(String value, String fallback) {
+        return value == null || value.trim().isEmpty() ? fallback : value.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private static String normalizeLanguage(String value) {
+        String normalized = normalize(value, "auto");
+        if ("en".equals(normalized)) return "english";
+        if ("ar".equals(normalized)) return "arabic";
+        if ("ur".equals(normalized)) return "urdu";
+        return normalized;
+    }
+
+    private static String primaryLanguage(String value) {
+        if (value == null) return "";
+        String normalized = value.trim().toLowerCase(Locale.ROOT).replace('_', '-');
+        int dash = normalized.indexOf('-');
+        return dash < 0 ? normalized : normalized.substring(0, dash);
+    }
+
+    static boolean containsArabicScript(String value) {
+        return scriptCounts(value)[0] > 0;
+    }
+
+    private static boolean isArabicPredominant(String value) {
+        int[] counts = scriptCounts(value);
+        int arabic = counts[0], allLetters = counts[1];
+        // Ignore incidental foreign examples or response options in an
+        // otherwise non-Arabic instrument.  Eight letters also makes very
+        // short but genuinely Arabic questionnaires detectable.
+        return arabic >= 8 && arabic * 2 >= allLetters;
+    }
+
+    private static int[] scriptCounts(String value) {
+        if (value == null) return new int[]{0, 0};
+        int arabic = 0, allLetters = 0;
+        for (int offset = 0; offset < value.length();) {
+            int codePoint = value.codePointAt(offset);
+            offset += Character.charCount(codePoint);
+            if (!Character.isLetter(codePoint)) continue;
+            allLetters++;
+            Character.UnicodeBlock block = Character.UnicodeBlock.of(codePoint);
+            if (block == Character.UnicodeBlock.ARABIC
+                    || block == Character.UnicodeBlock.ARABIC_SUPPLEMENT
+                    || block == Character.UnicodeBlock.ARABIC_EXTENDED_A
+                    || block == Character.UnicodeBlock.ARABIC_PRESENTATION_FORMS_A
+                    || block == Character.UnicodeBlock.ARABIC_PRESENTATION_FORMS_B) {
+                arabic++;
+            }
+        }
+        return new int[]{arabic, allLetters};
+    }
+
+    private static boolean containsUrduSignal(String value) {
+        if (value == null) return false;
+        // Letters whose repeated presence is a strong Urdu signal.  A language
+        // declaration remains authoritative because Persian/Pashto share some.
+        String urdu = "ٹڈڑںھہے";
+        int matches = 0;
+        for (int i = 0; i < value.length(); i++) {
+            if (urdu.indexOf(value.charAt(i)) >= 0 && ++matches >= 2) return true;
+        }
+        return false;
+    }
+
+    private static String questionnaireText(QuestionnaireSpec spec) {
+        if (spec == null) return "";
+        StringBuilder out = new StringBuilder();
+        append(out, spec.title);
+        for (QuestionSection section : spec.sections) append(out, section.title);
+        for (Question question : spec.questions) {
+            append(out, question.label);
+            append(out, question.subsection);
+            for (QuestionOption option : question.options) append(out, option.label);
+        }
+        return out.toString();
+    }
+
+    private static void append(StringBuilder output, String value) {
+        if (value != null && !value.isEmpty()) output.append(' ').append(value);
+    }
+
+    private static Map<String, Map<String, String>> translations() {
+        Map<String, Map<String, String>> all = new LinkedHashMap<String, Map<String, String>>();
+        Map<String, String> en = new LinkedHashMap<String, String>();
+        put(en,
+                "interactiveDashboard", "Interactive data dashboard",
+                "logoAlt", "Organization logo",
+                "selfContainedPrivacy", "Self-contained file · no network connection required",
+                "mapPrivacy", "Dashboard data embedded · basemap tiles require internet",
+                "questionnaire", "Questionnaire",
+                "simulatedBadge", "Simulated data · preview",
+                "weightedBadge", "Weighted dashboard",
+                "fieldworkBadge", "Fieldwork dashboard",
+                "previewEyebrow", "Preview generated from questionnaire structure",
+                "resultsEyebrow", "Interactive survey results",
+                "defaultSubtitle", "Interactive questionnaire dashboard",
+                "defaultDisclaimer", "Internal working dashboard. Review disclosure risk before sharing.",
+                "sharingNote", "Sharing note",
+                "dashboardSections", "Dashboard sections",
+                "overview", "Overview",
+                "section", "Section",
+                "dashboardControls", "Dashboard controls",
+                "showFilters", "Show filters",
+                "hideFilters", "Hide filters",
+                "activeFilter", "active filter",
+                "activeFilters", "active filters",
+                "searchPlaceholder", "Search indicators or variable names",
+                "searchIndicators", "Search indicators",
+                "resetAll", "Reset all",
+                "interviewsShown", "interviews shown",
+                "displaySettings", "Display settings",
+                "weightedEstimates", "Weighted estimates",
+                "unweightedEstimates", "Unweighted estimates",
+                "valuesInUsd", "Values in USD",
+                "localCurrency", "Local currency",
+                "summaryTable", "Summary table",
+                "sampleN", "Sample n",
+                "weightedTotal", "Weighted total",
+                "allFilteredInterviews", "All filtered interviews",
+                "dashboardSummary", "Dashboard summary",
+                "interviewsMatching", "Interviews matching filters",
+                "indicatorsVisualized", "Indicators visualized",
+                "sectionsShown", "Sections shown",
+                "questionsInstrument", "Questions in instrument",
+                "highlights", "Highlights",
+                "calculating", "Calculating…",
+                "keyMessages", "Key messages",
+                "keyMessage", "Key message",
+                "additionalIndicators", "Additional indicators",
+                "otherIndicators", "Other indicators",
+                "qualityNote", "quality note",
+                "qualityNotes", "quality notes",
+                "admin2Boundaries", "Admin-2 boundaries",
+                "countryOutline", "Country outline",
+                "points", "points",
+                "cluster", "clusters",
+                "heat", "heat map",
+                "display", "display",
+                "mapDisplay", "{type} display",
+                "mappedInterviewsShown", "mapped interviews shown",
+                "showMap", "Show map",
+                "hideMap", "Hide map",
+                "interactiveMapOf", "Interactive map of",
+                "preparingMap", "Preparing interactive map…",
+                "mapGroups", "Map groups",
+                "mapLayers", "Map layers",
+                "zoomIn", "Zoom in",
+                "zoomOut", "Zoom out",
+                "missingInvalid", "missing/invalid",
+                "outsideBoundary", "outside boundary",
+                "boundary", "Boundary",
+                "coincidentPoints", "coincident points are separated slightly on screen",
+                "spatialDistribution", "Spatial distribution",
+                "noSearchResults", "No indicators match this search.",
+                "searchHint", "Try a variable name or a shorter phrase.",
+                "indicator", "indicator",
+                "indicators", "indicators",
+                "variableName", "Variable name",
+                "numericDisplay", "Numeric display",
+                "distribution", "Distribution",
+                "stats", "Stats",
+                "noDataSelection", "No data for this selection",
+                "footerWeighted", "Charts show weighted estimates with raw valid n for interviews matching the active filters.",
+                "footerUnweighted", "Charts show unweighted frequencies and shares for interviews matching the active filters.",
+                "footerSpecial", "Special-value categories are retained and visually muted; declared negative special codes and configured missing codes are excluded from numeric results.",
+                "footerCI", "Ordinary categorical bars show pointwise Wilson {level}% confidence-interval whiskers. Binary, completion, and donut cards do not display confidence intervals.",
+                "footerWeightedCI", "Weighted intervals use an effective-sample-size approximation and are not adjusted for clustering or stratification.",
+                "note", "Note",
+                "source", "Source",
+                "generated", "Generated",
+                "offlineHtml", "offline HTML",
+                "onlineMapHtml", "interactive HTML; map tiles load online",
+                "simulatedWarning", "SIMULATED DATA — PREVIEW ONLY",
+                "chart", "Chart",
+                "notAvailable", "n/a",
+                "approx", "approx.",
+                "confidenceInterval", "CI",
+                "rawN", "raw n",
+                "validN", "valid n",
+                "respondentsN", "respondents n",
+                "validResponses", "valid responses",
+                "noPositiveWeight", "No positive weight for this selection",
+                "noValidResponses", "No valid responses for this selection",
+                "other", "Other",
+                "anyOtherResponse", "Any other response",
+                "categories", "categories",
+                "options", "options",
+                "summaryStatistics", "Summary statistics",
+                "noNumericValues", "No numeric values for this selection",
+                "validRawN", "Valid raw n",
+                "missingExcluded", "Missing/excluded",
+                "mean", "Mean",
+                "stdDev", "Std. dev.",
+                "minimum", "Minimum",
+                "maximum", "Maximum",
+                "median", "Median",
+                "meanPlusThreeSd", "Mean + 3 SD",
+                "to", "to",
+                "weightedSum", "weighted sum",
+                "descriptiveWeighted", "descriptive weighted statistics",
+                "noValidNumeric", "No valid numeric values for this selection",
+                "oneValidValue", "One valid value; open Stats for its summary",
+                "value", "value",
+                "values", "Values",
+                "discreteNeedsIntegers", "This discrete chart requires integer values; use a histogram for continuous values",
+                "discreteRangeTooWide", "The integer distribution could not be displayed",
+                "integerRange", "integer range",
+                "zeroFrequencyValues", "zero-frequency values",
+                "integerBinWidth", "integer bin width",
+                "integerValue", "Integer value",
+                "integerValueBins", "Integer value (grouped)",
+                "weightedMedian", "weighted median",
+                "weightedMean", "weighted mean",
+                "weightedFrequency", "weighted frequency",
+                "observations", "observations",
+                "weighted", "weighted",
+                "noRecognizableDates", "No recognizable dates for this selection",
+                "validDatesN", "valid dates n",
+                "noObservations", "No observations for this selection",
+                "answered", "Answered",
+                "missing", "Missing",
+                "answeredN", "answered n",
+                "missingN", "missing n",
+                "chartFailed", "This chart could not be rendered",
+                "of", "of",
+                "interviewLocation", "Interview location",
+                "coordinates", "Coordinates",
+                "group", "Group",
+                "coincidentPopup", "Coincident point separated slightly for visibility.",
+                "interview", "interview",
+                "interviews", "interviews",
+                "surveyBoundary", "Survey boundary",
+                "googleHybrid", "Google Hybrid",
+                "googleSatellite", "Google Satellite",
+                "googleRoads", "Google Roads",
+                "toggleTheme", "Switch between light and dark display",
+                "darkMode", "Dark mode",
+                "lightMode", "Light mode",
+                "downloadChart", "Download this chart as a PNG image",
+                "downloadData", "Download data (CSV)",
+                "downloadDataTitle", "Download the currently filtered interviews as a CSV file",
+                "downloadStarted", "Download started",
+                "weightColumn", "weight",
+                "copyViewLink", "Copy view link",
+                "copyViewTitle", "Copy a link that reopens this exact filtered view",
+                "viewLinkCopied", "Link copied",
+                "expandAll", "Expand all",
+                "collapseAll", "Collapse all",
+                "backToTop", "Back to top",
+                "openStreetMap", "OpenStreetMap");
+        all.put("english", Collections.unmodifiableMap(en));
+
+        Map<String, String> ar = new LinkedHashMap<String, String>();
+        put(ar,
+                "interactiveDashboard", "لوحة بيانات تفاعلية",
+                "logoAlt", "شعار المؤسسة",
+                "selfContainedPrivacy", "ملف مستقل · لا يلزم اتصال بالشبكة",
+                "mapPrivacy", "بيانات اللوحة مضمنة · تتطلب خرائط الأساس اتصالاً بالإنترنت",
+                "questionnaire", "الاستبيان",
+                "simulatedBadge", "بيانات محاكاة · معاينة",
+                "weightedBadge", "لوحة بيانات مرجّحة",
+                "fieldworkBadge", "لوحة العمل الميداني",
+                "previewEyebrow", "معاينة مولّدة من بنية الاستبيان",
+                "resultsEyebrow", "نتائج المسح التفاعلية",
+                "defaultSubtitle", "لوحة استبيان تفاعلية",
+                "defaultDisclaimer", "لوحة عمل داخلية. راجع مخاطر الإفصاح قبل المشاركة.",
+                "sharingNote", "ملاحظة المشاركة",
+                "dashboardSections", "أقسام لوحة البيانات",
+                "overview", "نظرة عامة",
+                "section", "القسم",
+                "dashboardControls", "عناصر تحكم لوحة البيانات",
+                "showFilters", "إظهار عوامل التصفية",
+                "hideFilters", "إخفاء عوامل التصفية",
+                "activeFilter", "عامل تصفية نشط",
+                "activeFilters", "عوامل تصفية نشطة",
+                "searchPlaceholder", "ابحث في المؤشرات أو أسماء المتغيرات",
+                "searchIndicators", "البحث في المؤشرات",
+                "resetAll", "إعادة ضبط الكل",
+                "interviewsShown", "مقابلات معروضة",
+                "displaySettings", "إعدادات العرض",
+                "weightedEstimates", "تقديرات مرجحة",
+                "unweightedEstimates", "تقديرات غير مرجّحة",
+                "valuesInUsd", "القيم بالدولار الأمريكي",
+                "localCurrency", "العملة المحلية",
+                "summaryTable", "جدول ملخص",
+                "sampleN", "حجم العينة",
+                "weightedTotal", "المجموع المرجّح",
+                "allFilteredInterviews", "جميع المقابلات بعد التصفية",
+                "dashboardSummary", "ملخص لوحة البيانات",
+                "interviewsMatching", "المقابلات المطابقة لعوامل التصفية",
+                "indicatorsVisualized", "المؤشرات المعروضة",
+                "sectionsShown", "الأقسام المعروضة",
+                "questionsInstrument", "أسئلة أداة المسح",
+                "highlights", "أبرز النتائج",
+                "calculating", "جارٍ الحساب…",
+                "keyMessages", "الرسائل الرئيسية",
+                "keyMessage", "رسالة رئيسية",
+                "additionalIndicators", "مؤشرات إضافية",
+                "otherIndicators", "مؤشرات أخرى",
+                "qualityNote", "ملاحظة جودة",
+                "qualityNotes", "ملاحظات جودة",
+                "admin2Boundaries", "حدود المستوى الإداري الثاني",
+                "countryOutline", "حدود الدولة",
+                "points", "نقاط",
+                "cluster", "تجمعات",
+                "heat", "خريطة حرارية",
+                "display", "عرض",
+                "mapDisplay", "عرض {type}",
+                "mappedInterviewsShown", "مقابلات ظاهرة على الخريطة",
+                "showMap", "إظهار الخريطة",
+                "hideMap", "إخفاء الخريطة",
+                "interactiveMapOf", "خريطة تفاعلية لـ",
+                "preparingMap", "جارٍ إعداد الخريطة التفاعلية…",
+                "mapGroups", "مجموعات الخريطة",
+                "mapLayers", "طبقات الخريطة",
+                "zoomIn", "تكبير",
+                "zoomOut", "تصغير",
+                "missingInvalid", "مفقودة/غير صالحة",
+                "outsideBoundary", "خارج الحدود",
+                "boundary", "الحدود",
+                "coincidentPoints", "تُفصل النقاط المتطابقة قليلاً على الشاشة",
+                "spatialDistribution", "التوزيع المكاني",
+                "noSearchResults", "لا توجد مؤشرات تطابق هذا البحث.",
+                "searchHint", "جرّب اسم متغير أو عبارة أقصر.",
+                "indicator", "مؤشر",
+                "indicators", "مؤشرات",
+                "variableName", "اسم المتغير",
+                "numericDisplay", "العرض الرقمي",
+                "distribution", "التوزيع",
+                "stats", "الإحصاءات",
+                "noDataSelection", "لا توجد بيانات لهذا التحديد",
+                "footerWeighted", "تعرض الرسوم تقديرات مرجّحة مع العدد الخام الصالح للمقابلات المطابقة لعوامل التصفية النشطة.",
+                "footerUnweighted", "تعرض الرسوم التكرارات والنسب غير المرجّحة للمقابلات المطابقة لعوامل التصفية النشطة.",
+                "footerSpecial", "تُحفظ فئات القيم الخاصة وتُعرض بلون خافت؛ وتُستبعد الرموز الخاصة السالبة المعلنة ورموز القيم المفقودة المحددة من النتائج الرقمية.",
+                "footerCI", "تعرض الأشرطة الفئوية العادية علامات فاصل ثقة ويلسون النقطي بنسبة {level}٪. ولا تعرض البطاقات الثنائية أو بطاقات الاكتمال أو المخططات الحلقية فواصل ثقة.",
+                "footerWeightedCI", "تستخدم الفواصل المرجّحة تقريب حجم العينة الفعال ولا تُعدّل للتجميع أو الطبقات.",
+                "note", "ملاحظة",
+                "source", "المصدر",
+                "generated", "تم الإنشاء",
+                "offlineHtml", "HTML دون اتصال",
+                "onlineMapHtml", "HTML تفاعلي؛ تُحمّل مربعات الخريطة عبر الإنترنت",
+                "simulatedWarning", "بيانات محاكاة — للمعاينة فقط",
+                "chart", "رسم بياني",
+                "notAvailable", "غير متاح",
+                "approx", "تقريبًا",
+                "confidenceInterval", "فاصل الثقة",
+                "rawN", "العدد الخام",
+                "validN", "العدد الصالح",
+                "respondentsN", "عدد المستجيبين",
+                "validResponses", "استجابات صالحة",
+                "noPositiveWeight", "لا يوجد وزن موجب لهذا التحديد",
+                "noValidResponses", "لا توجد استجابات صالحة لهذا التحديد",
+                "other", "أخرى",
+                "anyOtherResponse", "أي استجابة أخرى",
+                "categories", "فئات",
+                "options", "خيارات",
+                "summaryStatistics", "الإحصاءات الموجزة",
+                "noNumericValues", "لا توجد قيم رقمية لهذا التحديد",
+                "validRawN", "العدد الخام الصالح",
+                "missingExcluded", "مفقود/مستبعد",
+                "mean", "المتوسط",
+                "stdDev", "الانحراف المعياري",
+                "minimum", "الحد الأدنى",
+                "maximum", "الحد الأقصى",
+                "median", "الوسيط",
+                "meanPlusThreeSd", "المتوسط + 3 انحرافات معيارية",
+                "to", "إلى",
+                "weightedSum", "المجموع المرجّح",
+                "descriptiveWeighted", "إحصاءات وصفية مرجّحة",
+                "noValidNumeric", "لا توجد قيم رقمية صالحة لهذا التحديد",
+                "oneValidValue", "قيمة صالحة واحدة؛ افتح الإحصاءات لعرض الملخص",
+                "value", "القيمة",
+                "values", "القيم",
+                "discreteNeedsIntegers", "يتطلب هذا الرسم المتقطع قيماً صحيحة؛ استخدم مدرجاً تكرارياً للقيم المستمرة",
+                "discreteRangeTooWide", "تعذر عرض توزيع الأعداد الصحيحة",
+                "integerRange", "نطاق الأعداد الصحيحة",
+                "zeroFrequencyValues", "قيم بتكرار صفري",
+                "integerBinWidth", "عرض فئة الأعداد الصحيحة",
+                "integerValue", "القيمة الصحيحة",
+                "integerValueBins", "القيمة الصحيحة (مجمعة)",
+                "weightedMedian", "الوسيط المرجّح",
+                "weightedMean", "المتوسط المرجّح",
+                "weightedFrequency", "التكرار المرجّح",
+                "observations", "المشاهدات",
+                "weighted", "مرجّح",
+                "noRecognizableDates", "لا توجد تواريخ قابلة للتعرّف لهذا التحديد",
+                "validDatesN", "عدد التواريخ الصالحة",
+                "noObservations", "لا توجد مشاهدات لهذا التحديد",
+                "answered", "تمت الإجابة",
+                "missing", "مفقود",
+                "answeredN", "عدد الحالات المُجاب عنها",
+                "missingN", "عدد القيم المفقودة",
+                "chartFailed", "تعذر عرض هذا الرسم البياني",
+                "of", "من",
+                "interviewLocation", "موقع المقابلة",
+                "coordinates", "الإحداثيات",
+                "group", "المجموعة",
+                "coincidentPopup", "فُصلت النقطة المتطابقة قليلاً لتسهيل رؤيتها.",
+                "interview", "مقابلة",
+                "interviews", "مقابلات",
+                "surveyBoundary", "حدود المسح",
+                "googleHybrid", "خرائط Google الهجينة",
+                "googleSatellite", "صور Google بالأقمار الصناعية",
+                "googleRoads", "خرائط طرق Google",
+                "toggleTheme", "\u0627\u0644\u062a\u0628\u062f\u064a\u0644 \u0628\u064a\u0646 \u0627\u0644\u0639\u0631\u0636 \u0627\u0644\u0641\u0627\u062a\u062d \u0648\u0627\u0644\u062f\u0627\u0643\u0646",
+                "darkMode", "\u0627\u0644\u0648\u0636\u0639 \u0627\u0644\u062f\u0627\u0643\u0646",
+                "lightMode", "\u0627\u0644\u0648\u0636\u0639 \u0627\u0644\u0641\u0627\u062a\u062d",
+                "downloadChart", "\u062a\u0646\u0632\u064a\u0644 \u0647\u0630\u0627 \u0627\u0644\u0631\u0633\u0645 \u0627\u0644\u0628\u064a\u0627\u0646\u064a \u0628\u0635\u064a\u063a\u0629 PNG",
+                "downloadData", "\u062a\u0646\u0632\u064a\u0644 \u0627\u0644\u0628\u064a\u0627\u0646\u0627\u062a (CSV)",
+                "downloadDataTitle", "\u062a\u0646\u0632\u064a\u0644 \u0627\u0644\u0645\u0642\u0627\u0628\u0644\u0627\u062a \u0627\u0644\u0645\u0641\u0644\u062a\u0631\u0629 \u0627\u0644\u062d\u0627\u0644\u064a\u0629 \u0643\u0645\u0644\u0641 CSV",
+                "downloadStarted", "\u0628\u062f\u0623 \u0627\u0644\u062a\u0646\u0632\u064a\u0644",
+                "weightColumn", "\u0627\u0644\u0648\u0632\u0646",
+                "copyViewLink", "\u0646\u0633\u062e \u0631\u0627\u0628\u0637 \u0627\u0644\u0639\u0631\u0636",
+                "copyViewTitle", "\u0646\u0633\u062e \u0631\u0627\u0628\u0637 \u064a\u0639\u064a\u062f \u0641\u062a\u062d \u0647\u0630\u0627 \u0627\u0644\u0639\u0631\u0636 \u0627\u0644\u0645\u0641\u0644\u062a\u0631 \u0646\u0641\u0633\u0647",
+                "viewLinkCopied", "\u062a\u0645 \u0646\u0633\u062e \u0627\u0644\u0631\u0627\u0628\u0637",
+                "expandAll", "\u062a\u0648\u0633\u064a\u0639 \u0627\u0644\u0643\u0644",
+                "collapseAll", "\u0637\u064a \u0627\u0644\u0643\u0644",
+                "backToTop", "\u0627\u0644\u0639\u0648\u062f\u0629 \u0625\u0644\u0649 \u0627\u0644\u0623\u0639\u0644\u0649",
+                "openStreetMap", "OpenStreetMap");
+        all.put("arabic", Collections.unmodifiableMap(ar));
+
+        Map<String, String> ur = new LinkedHashMap<String, String>();
+        put(ur,
+                "interactiveDashboard", "انٹرایکٹو ڈیٹا ڈیش بورڈ",
+                "logoAlt", "ادارے کا لوگو",
+                "selfContainedPrivacy", "تمام مواد اسی فائل میں شامل ہیں · نیٹ ورک کنکشن درکار نہیں",
+                "mapPrivacy", "ڈیش بورڈ ڈیٹا شامل ہے · بنیادی نقشوں کے لیے انٹرنیٹ درکار ہے",
+                "questionnaire", "سوالنامہ",
+                "simulatedBadge", "مصنوعی ڈیٹا · پیش منظر",
+                "weightedBadge", "وزنی ڈیش بورڈ",
+                "fieldworkBadge", "فیلڈ ورک ڈیش بورڈ",
+                "previewEyebrow", "سوالنامے کی ساخت سے تیار کردہ پیش منظر",
+                "resultsEyebrow", "انٹرایکٹو سروے نتائج",
+                "defaultSubtitle", "انٹرایکٹو سوالنامہ ڈیش بورڈ",
+                "defaultDisclaimer", "اندرونی ورکنگ ڈیش بورڈ۔ شیئر کرنے سے پہلے افشا کے خطرے کا جائزہ لیں۔",
+                "sharingNote", "شیئرنگ نوٹ",
+                "dashboardSections", "ڈیش بورڈ کے حصے",
+                "overview", "جائزہ",
+                "section", "حصہ",
+                "dashboardControls", "ڈیش بورڈ کنٹرولز",
+                "showFilters", "فلٹرز دکھائیں",
+                "hideFilters", "فلٹرز چھپائیں",
+                "activeFilter", "فعال فلٹر",
+                "activeFilters", "فعال فلٹرز",
+                "searchPlaceholder", "اشاریے یا متغیر کے نام تلاش کریں",
+                "searchIndicators", "اشاریے تلاش کریں",
+                "resetAll", "سب دوبارہ ترتیب دیں",
+                "interviewsShown", "انٹرویوز دکھائے گئے",
+                "displaySettings", "نمائش کی ترتیبات",
+                "weightedEstimates", "وزنی تخمینے",
+                "unweightedEstimates", "غیر وزنی تخمینے",
+                "valuesInUsd", "امریکی ڈالر میں قدریں",
+                "localCurrency", "مقامی کرنسی",
+                "summaryTable", "خلاصہ جدول",
+                "sampleN", "نمونے کی تعداد",
+                "weightedTotal", "وزنی مجموعہ",
+                "allFilteredInterviews", "تمام فلٹر شدہ انٹرویوز",
+                "dashboardSummary", "ڈیش بورڈ خلاصہ",
+                "interviewsMatching", "فلٹرز سے مطابقت رکھنے والے انٹرویوز",
+                "indicatorsVisualized", "دکھائے گئے اشاریے",
+                "sectionsShown", "دکھائے گئے حصے",
+                "questionsInstrument", "سروے آلے کے سوالات",
+                "highlights", "اہم نکات",
+                "calculating", "حساب جاری ہے…",
+                "keyMessages", "اہم پیغامات",
+                "keyMessage", "اہم پیغام",
+                "additionalIndicators", "اضافی اشاریے",
+                "otherIndicators", "دیگر اشاریے",
+                "qualityNote", "معیار کا نوٹ",
+                "qualityNotes", "معیار کے نوٹس",
+                "admin2Boundaries", "دوسری انتظامی سطح کی حدود",
+                "countryOutline", "ملک کی حد",
+                "points", "نقاط",
+                "cluster", "کلسٹرز",
+                "heat", "حرارتی نقشہ",
+                "display", "نمائش",
+                "mapDisplay", "اندازِ نمائش: {type}",
+                "mappedInterviewsShown", "نقشے پر دکھائے گئے انٹرویوز",
+                "showMap", "نقشہ دکھائیں",
+                "hideMap", "نقشہ چھپائیں",
+                "interactiveMapOf", "انٹرایکٹو نقشہ:",
+                "preparingMap", "انٹرایکٹو نقشہ تیار ہو رہا ہے…",
+                "mapGroups", "نقشے کے گروپس",
+                "mapLayers", "نقشے کی تہیں",
+                "zoomIn", "بڑا کریں",
+                "zoomOut", "چھوٹا کریں",
+                "missingInvalid", "غائب/غلط",
+                "outsideBoundary", "حد سے باہر",
+                "boundary", "حد",
+                "coincidentPoints", "ایک جگہ موجود نقاط کو اسکرین پر قدرے الگ دکھایا گیا ہے",
+                "spatialDistribution", "مکانی تقسیم",
+                "noSearchResults", "اس تلاش سے کوئی اشاریہ نہیں ملا۔",
+                "searchHint", "متغیر کا نام یا مختصر عبارت آزمائیں۔",
+                "indicator", "اشاریہ",
+                "indicators", "اشاریے",
+                "variableName", "متغیر کا نام",
+                "numericDisplay", "عددی نمائش",
+                "distribution", "تقسیم",
+                "stats", "اعداد و شمار",
+                "noDataSelection", "اس انتخاب کے لیے ڈیٹا موجود نہیں",
+                "footerWeighted", "چارٹس فعال فلٹرز سے مطابقت رکھنے والے انٹرویوز کے لیے خام درست تعداد کے ساتھ وزنی تخمینے دکھاتے ہیں۔",
+                "footerUnweighted", "چارٹس فعال فلٹرز سے مطابقت رکھنے والے انٹرویوز کے غیر وزنی تعدد اور حصے دکھاتے ہیں۔",
+                "footerSpecial", "خصوصی قدروں کے زمرے برقرار اور مدھم دکھائے جاتے ہیں؛ منفی خصوصی کوڈ اور واضح طور پر غائب قرار دیے گئے کوڈ عددی نتائج سے خارج کیے جاتے ہیں۔",
+                "footerCI", "عام زمرہ جاتی بارز {level}٪ پوائنٹ وائز ولسن اعتماد کے وقفے کی وِسکرز دکھاتی ہیں۔ ثنائی، تکمیل اور ڈونٹ کارڈز اعتماد کے وقفے نہیں دکھاتے۔",
+                "footerWeightedCI", "وزنی وقفے مؤثر نمونے کے حجم کا تخمینہ استعمال کرتے ہیں اور کلسٹرنگ یا طبقات کے لیے ایڈجسٹ نہیں ہوتے۔",
+                "note", "نوٹ",
+                "source", "ماخذ",
+                "generated", "تیار کیا گیا",
+                "offlineHtml", "آف لائن HTML",
+                "onlineMapHtml", "انٹرایکٹو HTML؛ نقشے کی ٹائلیں آن لائن لوڈ ہوتی ہیں",
+                "simulatedWarning", "مصنوعی ڈیٹا — صرف پیش منظر",
+                "chart", "چارٹ",
+                "notAvailable", "دستیاب نہیں",
+                "approx", "تقریباً",
+                "confidenceInterval", "اعتماد کا وقفہ",
+                "rawN", "خام تعداد",
+                "validN", "درست تعداد",
+                "respondentsN", "جواب دہندگان کی تعداد",
+                "validResponses", "درست جوابات",
+                "noPositiveWeight", "اس انتخاب کے لیے مثبت وزن موجود نہیں",
+                "noValidResponses", "اس انتخاب کے لیے درست جوابات موجود نہیں",
+                "other", "دیگر",
+                "anyOtherResponse", "کوئی دیگر جواب",
+                "categories", "زمرے",
+                "options", "اختیارات",
+                "summaryStatistics", "خلاصہ اعداد و شمار",
+                "noNumericValues", "اس انتخاب کے لیے عددی قدریں موجود نہیں",
+                "validRawN", "درست خام تعداد",
+                "missingExcluded", "غائب/خارج",
+                "mean", "اوسط",
+                "stdDev", "معیاری انحراف",
+                "minimum", "کم از کم",
+                "maximum", "زیادہ سے زیادہ",
+                "median", "میڈین",
+                "meanPlusThreeSd", "اوسط + 3 معیاری انحراف",
+                "to", "تا",
+                "weightedSum", "وزنی مجموعہ",
+                "descriptiveWeighted", "وضاحتی وزنی اعداد و شمار",
+                "noValidNumeric", "اس انتخاب کے لیے درست عددی قدریں موجود نہیں",
+                "oneValidValue", "ایک درست قدر؛ خلاصے کے لیے اعداد و شمار کھولیں",
+                "value", "قدر",
+                "values", "قدریں",
+                "discreteNeedsIntegers", "اس جداگانہ چارٹ کے لیے صحیح عددی قدریں درکار ہیں؛ مسلسل قدروں کے لیے ہسٹوگرام استعمال کریں",
+                "discreteRangeTooWide", "صحیح اعداد کی تقسیم دکھائی نہیں جا سکی",
+                "integerRange", "صحیح اعداد کی حد",
+                "zeroFrequencyValues", "صفر تعدد والی قدریں",
+                "integerBinWidth", "صحیح عددی گروپ کی چوڑائی",
+                "integerValue", "صحیح عددی قدر",
+                "integerValueBins", "صحیح عددی قدر (گروپ شدہ)",
+                "weightedMedian", "وزنی میڈین",
+                "weightedMean", "وزنی اوسط",
+                "weightedFrequency", "وزنی تعدد",
+                "observations", "مشاہدات",
+                "weighted", "وزنی",
+                "noRecognizableDates", "اس انتخاب کے لیے قابل شناخت تاریخیں موجود نہیں",
+                "validDatesN", "درست تاریخوں کی تعداد",
+                "noObservations", "اس انتخاب کے لیے مشاہدات موجود نہیں",
+                "answered", "جواب دیا گیا",
+                "missing", "غائب",
+                "answeredN", "جواب شدہ تعداد",
+                "missingN", "غائب تعداد",
+                "chartFailed", "یہ چارٹ دکھایا نہیں جا سکا",
+                "of", "میں سے",
+                "interviewLocation", "انٹرویو کا مقام",
+                "coordinates", "مختصات",
+                "group", "گروپ",
+                "coincidentPopup", "واضح دکھانے کے لیے ایک جگہ موجود نقطہ قدرے الگ کیا گیا ہے۔",
+                "interview", "انٹرویو",
+                "interviews", "انٹرویوز",
+                "surveyBoundary", "سروے کی حد",
+                "googleHybrid", "Google ہائبرڈ",
+                "googleSatellite", "Google سیٹلائٹ",
+                "googleRoads", "Google سڑکیں",
+                "toggleTheme", "\u0631\u0648\u0634\u0646 \u0627\u0648\u0631 \u06af\u06c1\u0631\u06d2 \u0627\u0646\u062f\u0627\u0632 \u0645\u06cc\u06ba \u062a\u0628\u062f\u06cc\u0644\u06cc",
+                "darkMode", "\u06af\u06c1\u0631\u0627 \u0645\u0648\u0688",
+                "lightMode", "\u0631\u0648\u0634\u0646 \u0645\u0648\u0688",
+                "downloadChart", "\u06cc\u06c1 \u0686\u0627\u0631\u0679 PNG \u062a\u0635\u0648\u06cc\u0631 \u06a9\u06d2 \u0637\u0648\u0631 \u067e\u0631 \u0688\u0627\u0624\u0646 \u0644\u0648\u0688 \u06a9\u0631\u06cc\u06ba",
+                "downloadData", "\u0688\u06cc\u0679\u0627 \u0688\u0627\u0624\u0646 \u0644\u0648\u0688 \u06a9\u0631\u06cc\u06ba (CSV)",
+                "downloadDataTitle", "\u0645\u0648\u062c\u0648\u062f\u06c1 \u0641\u0644\u0679\u0631 \u0634\u062f\u06c1 \u0627\u0646\u0679\u0631\u0648\u06cc\u0648\u0632 CSV \u0641\u0627\u0626\u0644 \u0645\u06cc\u06ba \u0688\u0627\u0624\u0646 \u0644\u0648\u0688 \u06a9\u0631\u06cc\u06ba",
+                "downloadStarted", "\u0688\u0627\u0624\u0646 \u0644\u0648\u0688 \u0634\u0631\u0648\u0639 \u06c1\u0648 \u06af\u06cc\u0627",
+                "weightColumn", "\u0648\u0632\u0646",
+                "copyViewLink", "\u0645\u0646\u0638\u0631 \u06a9\u0627 \u0644\u0646\u06a9 \u06a9\u0627\u067e\u06cc \u06a9\u0631\u06cc\u06ba",
+                "copyViewTitle", "\u0627\u06cc\u0633\u0627 \u0644\u0646\u06a9 \u06a9\u0627\u067e\u06cc \u06a9\u0631\u06cc\u06ba \u062c\u0648 \u06cc\u06c1\u06cc \u0641\u0644\u0679\u0631 \u0634\u062f\u06c1 \u0645\u0646\u0638\u0631 \u062f\u0648\u0628\u0627\u0631\u06c1 \u06a9\u06be\u0648\u0644\u06d2",
+                "viewLinkCopied", "\u0644\u0646\u06a9 \u06a9\u0627\u067e\u06cc \u06c1\u0648 \u06af\u06cc\u0627",
+                "expandAll", "\u0633\u0628 \u06a9\u06be\u0648\u0644\u06cc\u06ba",
+                "collapseAll", "\u0633\u0628 \u0628\u0646\u062f \u06a9\u0631\u06cc\u06ba",
+                "backToTop", "\u0627\u0648\u067e\u0631 \u0648\u0627\u067e\u0633 \u062c\u0627\u0626\u06cc\u06ba",
+                "openStreetMap", "OpenStreetMap");
+        all.put("urdu", Collections.unmodifiableMap(ur));
+        return Collections.unmodifiableMap(all);
+    }
+
+    private static void put(Map<String, String> target, String... values) {
+        if (values.length % 2 != 0) throw new IllegalArgumentException("Translation entries must be key/value pairs.");
+        for (int i = 0; i < values.length; i += 2) target.put(values[i], values[i + 1]);
+    }
+}

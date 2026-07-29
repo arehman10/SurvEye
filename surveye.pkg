@@ -1,0 +1,33 @@
+v 3
+d surveye: SurvEye interactive Survey Solutions HTML dashboards from Stata
+d
+d SurvEye creates a polished interactive dashboard from a Survey Solutions
+d questionnaire HTML file and the corresponding data in memory. Supports
+d questionnaire and custom variables, smart variable families, subgroup comparisons,
+d flexible sections, filters, highlights, discrete-count detection,
+d native Stata weights, runtime weight/USD switches, profile tables,
+d an editorial default finish with configurable background, typography,
+d corners, shadows, motion, and page width, optional confidence intervals,
+d live-filtered numeric summaries,
+d Arabic/Urdu right-to-left interfaces, Unicode, and optional Leaflet GPS maps
+d with Google or OpenStreetMap base layers.
+d
+d Version: 2.2.0
+d Requires: Stata 16 or newer
+d Author: Attique Ur Rehman
+d Affiliation: Enterprise Analysis Unit, World Bank
+d Repository: https://github.com/arehman10/SurvEye
+d Support: https://github.com/arehman10/SurvEye/issues
+d Distribution-Date: 20260727
+d License: MIT
+d
+f surveye.ado
+f surveye.sthlp
+F surveye.jar
+F surveye_2_2_0.jar
+f example.do
+f README.md
+f LICENSE
+f THIRDPARTY-LICENSES.md
+f CHANGELOG.md
+e
