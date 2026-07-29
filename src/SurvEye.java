@@ -393,7 +393,7 @@ public final class SurvEye {
 
     private static void printSuccess(DashboardModel model, DashboardConfig config) {
         System.out.println();
-        System.out.println("OK  Survey Solutions dashboard created");
+        System.out.println("OK  SurvEye dashboard created");
         System.out.println();
         System.out.println("    Questionnaire   " + model.product);
         System.out.println("    Observations    " + model.observations);

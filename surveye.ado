@@ -941,7 +941,7 @@ program define _surveye_main, rclass
         `"`macval(shadow)'"' `"`macval(motion)'"' `"`pagewidth'"'
 
     display as text _newline "{hline 72}"
-    display as result "OK" as text "  Survey Solutions dashboard created"
+    display as result "OK" as text "  SurvEye dashboard created"
     if `"`macval(outtitle)'"' != "" display as text "    Title           " as result `"`macval(outtitle)'"'
     if !missing(`outN') display as text "    Observations    " as result %12.0fc `outN'
     if !missing(`outsections') display as text "    Sections        " as result %12.0fc `outsections'
@@ -1061,7 +1061,7 @@ program define _surveye_describe, rclass
     local outwarnings = r(warnings)
     mata: st_local("outquestionnaire", st_global("r(questionnaire)"))
     display as text _newline "{hline 72}"
-    display as result "OK" as text "  Survey Solutions questionnaire read successfully"
+    display as result "OK" as text "  Questionnaire read successfully"
     if `"`macval(outtitle)'"' != "" display as text "    Title            " as result `"`macval(outtitle)'"'
     if !missing(`outsections') display as text "    Sections         " as result %12.0fc `outsections'
     if !missing(`outcharts') display as text "    Chartable items  " as result %12.0fc `outcharts'
@@ -1327,7 +1327,7 @@ program define _surveye_demo, rclass
         `"`macval(shadow)'"' `"`macval(motion)'"' `"`pagewidth'"'
 
     display as text _newline "{hline 72}"
-    display as result "OK" as text "  Simulated Survey Solutions dashboard created"
+    display as result "OK" as text "  Simulated SurvEye dashboard created"
     display as text "    Data             " as result "SIMULATED -- PREVIEW ONLY"
     if `"`macval(outtitle)'"' != "" display as text "    Title            " as result `"`macval(outtitle)'"'
     if !missing(`outN') display as text "    Simulated rows   " as result %12.0fc `outN'

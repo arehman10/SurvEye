@@ -7,7 +7,11 @@
 > or open `feature_preview_2_2_0.html` for a small dashboard built from the
 > bundled fixture questionnaire that demonstrates every new control.
 
-Open `sample_dashboard.html` in any modern browser. It is a SurvEye preview with
+Open `sample_dashboard.html` in any modern browser.
+
+`surveycto_demo_preview.html` is a simulated-data dashboard built from the
+bundled SurveyCTO form definition (`tests/surveycto_xform_questionnaire.xml`)
+with `surveye demo` — no dataset required. It is a SurvEye preview with
 300 simulated records, a bundled Australia outline, weighted/unweighted and
 AUD/USD switches, a live legal-status profile table, a filter, highlight cards,
 messages, live-filtered numeric Stats tabs, conditional

@@ -1,4 +1,4 @@
-# SurvEye: interactive Survey Solutions dashboards for Stata
+# SurvEye: interactive Survey Solutions and SurveyCTO dashboards for Stata
 
 **Author:** Attique Ur Rehman, Enterprise Analysis Unit, World Bank  
 **Development assistance:** Developed with help of GPT-5.6 Sol Ultra.
@@ -9,7 +9,7 @@
 [Examples](example.do) ·
 [Changelog](CHANGELOG.md)
 
-SurvEye is a Stata 16+ tool, distributed as the command `surveye`, that turns a Survey Solutions questionnaire HTML file and the corresponding Stata data into a polished, interactive HTML dashboard. Questionnaire text supplies the labels, sections, response order, and categories; the command adds compact charts, smart related-variable families, explicit subgroup comparisons, filters, messages, custom data variables, native Stata weights, optional confidence intervals, live-filtered numeric summaries, optional profile tables, local-currency/USD switching, a localized right-to-left interface, and an optional Leaflet country map.
+SurvEye is a Stata 16+ tool, distributed as the command `surveye`, that turns a survey questionnaire—a Survey Solutions questionnaire preview (HTML), a SurveyCTO form definition (XML), or a SurveyCTO printable form (HTML)—and the corresponding Stata data into a polished, interactive HTML dashboard. Questionnaire text supplies the labels, sections, response order, and categories; the command adds compact charts, smart related-variable families, explicit subgroup comparisons, filters, messages, custom data variables, native Stata weights, optional confidence intervals, live-filtered numeric summaries, optional profile tables, local-currency/USD switching, a localized right-to-left interface, and an optional Leaflet country map.
 
 The command has deliberately useful defaults:
 
@@ -25,7 +25,27 @@ The command has deliberately useful defaults:
 - `uilanguage(auto)` translates the interface and selects right-to-left layout for Arabic and Urdu questionnaires;
 - GPS maps use individual points over Google Hybrid by default—nearby observations are not collapsed unless requested;
 - the dataset in memory is preserved while a temporary UTF-8 raw-code CSV is passed to the bundled Java engine through Stata's `javacall` interface; and
-- since 2.2.0, every dashboard ships built-in reader tools: a light/dark theme switch, shareable **Copy view link** URLs that reopen the exact filtered view, **Download data (CSV)** for the currently filtered interviews (labelled categories, weight column, Excel-safe UTF-8), per-chart PNG download, expand/collapse-all section controls, a back-to-top button with a reading-progress bar, and `/` / `Esc` keyboard shortcuts for search—all localized in English, Arabic, and Urdu, all excluded from print output, and none requiring a new Stata option or network access. The 2.2.0 release also refreshes the visual identity: an embedded Public Sans variable typeface with true tabular numerals, a navy hero cover with a sampling-grid motif and cyan-to-gold spectrum rule, the warm archival paper of the house style under navy-keyed ink, and a richer dark theme—with chart data colors and all calculations unchanged. SurvEye reads Survey Solutions questionnaire previews (HTML) and SurveyCTO questionnaires—the form-definition XML precisely (groups, repeats, itext translations, inline and itemset choice lists, calculate fields) and the printable HTML on a best-effort basis—with format detection by content and automatic reassembly of SurveyCTO split select_multiple columns. Dashboards can now be signed with `byline("Label|Name|Role|Email")`, titles and subtitles support `*emphasis*` pairs, and profile-table share cells carry table-lens micro-bars under a filled-navy header.
+- since 2.2.0, every dashboard ships built-in reader tools: a light/dark theme switch, shareable **Copy view link** URLs that reopen the exact filtered view, **Download data (CSV)** for the currently filtered interviews (labelled categories, weight column, Excel-safe UTF-8), per-chart PNG download, expand/collapse-all section controls, a back-to-top button with a reading-progress bar, and `/` / `Esc` keyboard shortcuts for search—all localized in English, Arabic, and Urdu, all excluded from print output, and none requiring a new Stata option or network access. The 2.2.0 release also refreshes the visual identity: an embedded Public Sans variable typeface with true tabular numerals, a navy hero cover with a sampling-grid motif and cyan-to-gold spectrum rule, the warm archival paper of the house style under navy-keyed ink, and a richer dark theme—with chart data colors and all calculations unchanged. Dashboards can now be signed with `byline("Label|Name|Role|Email")`, titles and subtitles support `*emphasis*` pairs, and profile-table share cells carry table-lens micro-bars under a filled-navy header.
+
+## Supported questionnaires
+
+The `using` file may be any of three questionnaire artifacts. Detection reads
+the file's content, never its extension, so a form definition saved as
+`.html` still parses.
+
+| Input | How to obtain it | What SurvEye reads |
+|---|---|---|
+| **Survey Solutions questionnaire preview** (HTML) | Designer → questionnaire → printable/export preview | Exact: sections, question types, categories, special codes, rosters flagged. The original format; unchanged. |
+| **SurveyCTO form definition** (XML) | SurveyCTO console → Design → the form → download form files | Exact: form title, top-level groups as sections, nested groups as subsections, repeats (flagged), bind types, inline choice items and itemsets over secondary instances, `jr:itext` translations in the default language, notes (skipped), and calculate fields. |
+| **SurveyCTO printable form** (HTML) | SurveyCTO console → Design → print form | Direct, certified against a real production export: the printed Field/Question/Answer table, dark group rows as sections, breadcrumb subgroup rows (including repeated groups) as subsections, choice tables with codes and labels, relevance conditions, hints kept out of labels. Printables do not encode field types, so choice fields import as select_one and open, note, or calculated fields as text; display-only notes drop automatically when no data column matches. |
+
+SurveyCTO split `select_multiple` exports (`field_1`, `field_2`, ...) are
+reassembled into multiselect charts automatically, alongside the Survey
+Solutions `field__1` style. For exact SurveyCTO field types, prefer the form
+definition XML; an unrecognized printable layout fails with directions to it.
+`surveye describe using "form.xml", detail` verifies any questionnaire in
+seconds, and `surveye demo` previews it with simulated data before fieldwork
+files exist.
 
 Chart.js, Leaflet, styles, selected data, logos, and boundary geometry are embedded in the output. A dashboard without a map has no runtime network dependency. A map-enabled dashboard needs internet access to fetch the selected Google or OpenStreetMap tiles; it never uploads the survey data.
 
@@ -57,7 +77,7 @@ The package marks its JARs with uppercase `F` records so `net install` places bo
 ### Requirements
 
 - Stata 16 or newer with Java enabled (`java query` in Stata);
-- the questionnaire-preview HTML exported by Survey Solutions;
+- the questionnaire file: a Survey Solutions preview HTML, a SurveyCTO form-definition XML, or a SurveyCTO printable-form HTML;
 - the corresponding Stata dataset in memory for a normal build; and
 - internet access only when displaying a Google or OpenStreetMap background map.
 
@@ -108,9 +128,24 @@ surveye demo using "questionnaire.html", ///
     saving("preview.html") n(300) seed(42) replace open
 ```
 
+The same three commands accept a SurveyCTO questionnaire:
+
+```stata
+surveye describe using "form_definition.xml", detail
+
+use "surveycto_export.dta", clear
+surveye using "form_definition.xml", ///
+    saving("dashboard.html") replace open
+
+surveye demo using "form_definition.xml", ///
+    saving("preview.html") n(300) seed(42) replace open
+```
+
 ## Main syntax
 
 ```stata
+* The using file is a Survey Solutions preview (.html) or a SurveyCTO
+* form definition (.xml) / printable form (.html); detection is by content.
 surveye [varlist] [if] [in] using questionnaire.html [aw=wmedian], ///
     saving(filename) [options]
 
@@ -175,7 +210,7 @@ unless one of the new layer options is supplied.
 
 ## Selecting questionnaire variables
 
-With neither a `varlist` nor `questions()`, the engine considers every chartable questionnaire item present in the data. A `varlist` selects ordinary Stata variables. `questions()` selects logical Survey Solutions names and is especially useful for a multiselect stored as expansion variables such as `services_used__1` and `services_used__2`. The selectors can be combined and are deduplicated.
+With neither a `varlist` nor `questions()`, the engine considers every chartable questionnaire item present in the data. A `varlist` selects ordinary Stata variables. `questions()` selects logical questionnaire names—Survey Solutions question names or SurveyCTO field names—and is especially useful for a multiselect stored as expansion variables such as `services_used__1` and `services_used__2` (Survey Solutions) or `services_1` and `services_2` (SurveyCTO split exports). The selectors can be combined and are deduplicated.
 
 ```stata
 surveye sales employment using "questionnaire.html", ///
@@ -515,7 +550,7 @@ A map-enabled HTML file embeds valid latitude and longitude so Leaflet can draw 
 
 ## Data rules and privacy
 
-One invocation represents one rectangular unit of observation. Survey Solutions roster exports are separate files; create one dashboard per roster level, or merge a carefully defined roster summary into the parent data first. Blind joins can change denominators.
+One invocation represents one rectangular unit of observation. Survey Solutions roster exports and SurveyCTO repeat groups live outside the main rectangular file (separate files, or wide/long companion columns); create one dashboard per level, or merge a carefully defined summary into the parent data first. Blind joins can change denominators. Repeat-group fields read from a SurveyCTO questionnaire chart only where a matching main-file column exists.
 
 The HTML embeds the selected analysis-level values needed by filters and figures. Text, picture, audio, linked text-list, and questionnaire-GPS completion items are reduced to answered/not-answered flags instead of embedding their original contents. Raw response codes are sent to the engine so questionnaire categories remain authoritative; `customvars()` is the exception where Stata variable labels and, when applicable, observed value labels are intentionally used. Questionnaire-defined special responses remain visible and muted in categorical figures. Negative special codes are automatically excluded from numeric histograms, statistics, and numeric filters because they are not measurements; nonnegative substantive shortcuts remain valid. This removes Survey Solutions responses such as `-4` and `-9` without discarding legitimate negative-valued questions. Use `missingcodes()` for additional sentinels not declared by the questionnaire, for example `missingcodes(-999 -998 999)`.
 
@@ -539,6 +574,7 @@ The portable tests require a JDK and, for the complete parser regression, the di
 ./tests/check_package.sh
 node tests/test_statistics.js
 ./tests/run_engine_smoke.sh tests
+./tests/run_surveycto_tests.sh
 ./tests/run_parser_tests.sh /path/to/questionnaire-html-files
 ./tests/run_engine_smoke.sh /path/to/questionnaire-html-files
 ./release.sh /path/to/release-directory
@@ -569,6 +605,8 @@ For a map-enabled dashboard, the harness should allow or deliberately stub the d
 - `surveye.pkg` and `stata.toc` — Stata package metadata
 - `example.do` — runnable starter and recipes
 - `tests/stata_smoke.do` — licensed-Stata integration checks
+- `tests/run_surveycto_tests.sh` — SurveyCTO XML and printable-form checks (fixtures included)
+- `examples/surveycto_demo_preview.html` — simulated dashboard built from the bundled SurveyCTO form definition
 - `examples/sample_dashboard.html` — simulated browser-ready feature preview
 - `tests/sample_dashboard_config.tsv` — reproducible configuration for that preview
 - `GITHUB_UPLOAD.md`, `PUBLISHING.md`, and `release.sh` — GitHub/SSC release instructions and clean archive builder
@@ -596,4 +634,4 @@ design of this package.
 Released under the [MIT License](LICENSE). This is an independent utility; the
 views and dashboards produced with it do not necessarily represent the views
 of the World Bank, its Board of Executive Directors, or the governments they
-represent. Survey Solutions is a World Bank data-collection platform.
+represent. Survey Solutions is a World Bank data-collection platform. SurveyCTO is a data-collection platform by Dobility, Inc.; this independent tool reads its questionnaire files and is not affiliated with or endorsed by Dobility.
