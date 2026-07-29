@@ -993,3 +993,11 @@ This software is provided under the MIT License.  It is an independent utility;
 the views and dashboards produced with it do not necessarily represent the
 views of the World Bank, its Board of Executive Directors, or the governments
 they represent.  Survey Solutions is a World Bank data-collection platform.
+
+
+{title:Also see}
+
+{pstd}
+Online: {browse "https://docs.mysurvey.solutions/headquarters/api/api-r-package/":Survey Solutions API documentation}{p_end}
+{pstd}
+Help:  {helpb suso}, {helpb javacall}, {helpb import}, {helpb shell}{p_end}
