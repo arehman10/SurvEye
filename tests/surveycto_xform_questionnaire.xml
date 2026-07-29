@@ -1,0 +1,138 @@
+<?xml version="1.0"?>
+<h:html xmlns="http://www.w3.org/2002/xforms"
+        xmlns:h="http://www.w3.org/1999/xhtml"
+        xmlns:jr="http://openrosa.org/javarosa"
+        xmlns:orx="http://openrosa.org/xforms"
+        xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <h:head>
+    <h:title>Informal Vendor Pilot</h:title>
+    <model>
+      <itext>
+        <translation lang="English (en)" default="true()">
+          <text id="/data/consent_profile:label"><value>Consent and profile</value></text>
+        <text id="/data/consent_profile/resp_age:label"><value>How old is the respondent?</value></text>
+          <text id="/data/consent_profile/owner_gender:label"><value>Gender of the owner</value></text>
+          <text id="/data/consent_profile/owner_gender/1:label"><value>Female</value></text>
+          <text id="/data/consent_profile/owner_gender/2:label"><value>Male</value></text>
+          <text id="/data/business:label"><value>Business operations</value></text>
+          <text id="/data/business/practices:label"><value>Management practices</value></text>
+          <text id="/data/business/monthly_sales:label"><value>Sales in the last calendar month</value></text>
+          <text id="/data/business/services:label"><value>Which services does the business use?</value></text>
+          <text id="services-0"><value>Mobile money</value></text>
+          <text id="services-1"><value>Bank account</value></text>
+          <text id="services-2"><value>Informal lender</value></text>
+        </translation>
+        <translation lang="Sinhala (si)">
+          <text id="/data/consent_profile:label"><value>si placeholder</value></text>
+        </translation>
+      </itext>
+      <instance>
+        <data id="informal_vendor_pilot" orx:version="2026072901">
+          <consent_profile>
+            <intro_note/>
+            <resp_age/>
+            <owner_gender/>
+            <visit_date/>
+          </consent_profile>
+          <business>
+            <monthly_sales/>
+            <services/>
+            <shop_photo/>
+            <location/>
+            <practices>
+              <keeps_records/>
+            </practices>
+            <workers jr:template="">
+              <worker_age/>
+            </workers>
+          </business>
+          <phone_number/>
+          <sales_usd/>
+        </data>
+      </instance>
+      <instance id="services">
+        <root>
+          <item><itextId>services-0</itextId><name>1</name></item>
+          <item><itextId>services-1</itextId><name>2</name></item>
+          <item><itextId>services-2</itextId><name>3</name></item>
+        </root>
+      </instance>
+      <bind nodeset="/data/consent_profile/intro_note" readonly="true()" type="string"/>
+      <bind nodeset="/data/consent_profile/resp_age" type="int" relevant="true()"/>
+      <bind nodeset="/data/consent_profile/owner_gender" type="select1"/>
+      <bind nodeset="/data/consent_profile/visit_date" type="date"/>
+      <bind nodeset="/data/business/monthly_sales" type="decimal"/>
+      <bind nodeset="/data/business/services" type="select"/>
+      <bind nodeset="/data/business/shop_photo" type="binary"/>
+      <bind nodeset="/data/business/location" type="geopoint"/>
+      <bind nodeset="/data/business/practices/keeps_records" type="select1"/>
+      <bind nodeset="/data/business/workers/worker_age" type="int"/>
+      <bind nodeset="/data/phone_number" type="string"/>
+      <bind nodeset="/data/sales_usd" type="decimal" calculate="/data/business/monthly_sales div 300"/>
+    </model>
+  </h:head>
+  <h:body>
+    <group ref="/data/consent_profile">
+      <label ref="jr:itext('/data/consent_profile:label')"/>
+      <input ref="/data/consent_profile/intro_note">
+        <label>Read the consent statement to the respondent.</label>
+      </input>
+      <input ref="/data/consent_profile/resp_age">
+        <label ref="jr:itext('/data/consent_profile/resp_age:label')"/>
+        <hint>Years, completed.</hint>
+      </input>
+      <select1 ref="/data/consent_profile/owner_gender">
+        <label ref="jr:itext('/data/consent_profile/owner_gender:label')"/>
+        <item>
+          <label ref="jr:itext('/data/consent_profile/owner_gender/1:label')"/>
+          <value>1</value>
+        </item>
+        <item>
+          <label ref="jr:itext('/data/consent_profile/owner_gender/2:label')"/>
+          <value>2</value>
+        </item>
+      </select1>
+      <input ref="/data/consent_profile/visit_date">
+        <label>Date of visit</label>
+      </input>
+    </group>
+    <group ref="/data/business">
+      <label ref="jr:itext('/data/business:label')"/>
+      <input ref="/data/business/monthly_sales">
+        <label ref="jr:itext('/data/business/monthly_sales:label')"/>
+      </input>
+      <select ref="/data/business/services">
+        <label ref="jr:itext('/data/business/services:label')"/>
+        <itemset nodeset="instance('services')/root/item">
+          <value ref="name"/>
+          <label ref="jr:itext(itextId)"/>
+        </itemset>
+      </select>
+      <upload ref="/data/business/shop_photo" mediatype="image/*">
+        <label>Photo of the shop front</label>
+      </upload>
+      <input ref="/data/business/location">
+        <label>Capture the shop location</label>
+      </input>
+      <group ref="/data/business/practices">
+        <label ref="jr:itext('/data/business/practices:label')"/>
+        <select1 ref="/data/business/practices/keeps_records">
+          <label>Keeps written business records</label>
+          <item><label>Yes</label><value>1</value></item>
+          <item><label>No</label><value>0</value></item>
+        </select1>
+      </group>
+      <group ref="/data/business/workers">
+        <label>Workers</label>
+        <repeat nodeset="/data/business/workers">
+          <input ref="/data/business/workers/worker_age">
+            <label>Age of this worker</label>
+          </input>
+        </repeat>
+      </group>
+    </group>
+    <input ref="/data/phone_number">
+      <label>Best contact number</label>
+    </input>
+  </h:body>
+</h:html>

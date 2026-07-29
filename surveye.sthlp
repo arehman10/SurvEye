@@ -9,15 +9,36 @@
 
 {phang}
 {bf:surveye} {hline 2} SurvEye: create an interactive HTML dashboard from a
-Survey Solutions questionnaire and the corresponding Stata data
+Survey Solutions or SurveyCTO questionnaire and the corresponding Stata data
 
 
 {marker quickstart}{...}
 {title:Quick start}
 
 {pstd}
-Load one Survey Solutions data file and point {cmd:surveye} to the
-printable/exported questionnaire HTML:
+Load one survey data file and point {cmd:surveye} to the questionnaire.
+Three questionnaire files are accepted, detected by content rather than
+extension: a Survey Solutions questionnaire preview ({bf:HTML}); a SurveyCTO
+form definition ({bf:XML}, downloaded in SurveyCTO under Design {c -} form
+files), which is read exactly, including groups, repeats, choice lists,
+translations, and calculate fields; and a SurveyCTO printable form
+({bf:HTML}) {c -} the printed Field/Question/Answer table is read directly,
+including group sections, nested and repeated subgroups, choice lists, and
+relevance conditions.  Printables do not encode field types, so choice
+fields import as {it:select_one} and open or note fields as text; notes
+drop automatically when no matching data column exists.  When a printable
+layout is not recognized, the error points to the XML definition.
+SurveyCTO split select_multiple exports ({cmd:field_1}, {cmd:field_2}, ...)
+are reassembled automatically.
+
+{phang2}{cmd:. use "survey_data.dta", clear}
+
+{phang2}{cmd:. surveye using "questionnaire.html", saving("dashboard.html") replace open}
+
+{phang2}{cmd:. surveye using "form_definition.xml", saving("dashboard.html") replace open}
+
+{pstd}
+The original Survey Solutions flow is unchanged:
 
 {phang2}{cmd:. use "survey_data.dta", clear}
 
@@ -993,11 +1014,3 @@ This software is provided under the MIT License.  It is an independent utility;
 the views and dashboards produced with it do not necessarily represent the
 views of the World Bank, its Board of Executive Directors, or the governments
 they represent.  Survey Solutions is a World Bank data-collection platform.
-
-
-{title:Also see}
-
-{pstd}
-Online: {browse "https://docs.mysurvey.solutions/headquarters/api/api-r-package/":Survey Solutions API documentation}{p_end}
-{pstd}
-Help:  {helpb suso}, {helpb javacall}, {helpb import}, {helpb shell}{p_end}

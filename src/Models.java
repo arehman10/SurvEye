@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Set;
 
 final class QuestionnaireSpec {
+    String sourceFormat = "Survey Solutions questionnaire";
     String title = "Survey";
     String language = "und";
     final List<QuestionSection> sections = new ArrayList<QuestionSection>();

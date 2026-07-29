@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+ <head><meta http-equiv="content-type" content="text/html; charset=UTF-8" /></head>
+ <body>
+  <div style="margin: auto; width: 1000px">
+   <h4>Vendor Screening Form</h4>
+   <table class="table table-bordered table-condensed" style="height: 100%; width: 100%">
+    <thead>
+     <tr>
+      <th style="width: 20%;" class="headerCell"> <h6>Field</h6> </th>
+      <th style="width: 60%;" class="headerCell"> <h6>Question</h6> </th>
+      <th style="width: 20%;" class="headerCell"> <h6>Answer</h6> </th>
+     </tr>
+    </thead>
+    <tbody>
+     <tr class="gray entryRow">
+      <td style="padding-left: 5px;" class="fieldCell"> <span>note_intro</span> </td>
+      <td class="questionCell"><p><strong>Read the consent statement aloud.</strong></p></td>
+      <td class="answerCell response-note-cell"></td>
+     </tr>
+     <tr class="entryRow">
+      <td style="padding-left: 5px;" class="fieldCell"> <span>vendor_open <span class="required">(required)</span> </span> </td>
+      <td class="questionCell">Is the vendor open for business today? <p class="relevance">Question relevant when: ${caseid} != null</p></td>
+      <td>
+       <table class="table table-bordered table-condensed">
+        <tr>
+         <td class="response-note-cell"></td>
+         <td style="text-align: center; padding-left: 3px; padding-right: 3px;">1</td>
+         <td style="width: 100%; padding-left: 3px; padding-right: 3px;"> <span>Yes</span> </td>
+        </tr>
+        <tr>
+         <td class="response-note-cell"></td>
+         <td style="text-align: center; padding-left: 3px; padding-right: 3px;">0</td>
+         <td style="width: 100%; padding-left: 3px; padding-right: 3px;"> <span>No</span> </td>
+        </tr>
+       </table>
+      </td>
+     </tr>
+     <tr class="gray entryRow">
+      <td style="padding-left: 5px; background-color: #707070; color: #FFFFFF;" colspan="3"> <span>Owner interview</span> <p class="relevance">Group relevant when: selected( ${vendor_open} , '1')</p> </td>
+     </tr>
+     <tr class="entryRow">
+      <td style="height: 100%;">
+       <div style="height: 100%; width: 100%">
+        <table class="table borderless" style="height: 100%">
+         <tr>
+          <td class="spacer" style="background-color: #707070;"></td>
+          <td class="fieldCell" style="padding-left: 5px;"> <span>owner_sex <span class="required">(required)</span> </span> </td>
+         </tr>
+        </table>
+       </div>
+      </td>
+      <td class="questionCell">Sex of the owner</td>
+      <td>
+       <table class="table table-bordered table-condensed">
+        <tr>
+         <td class="response-note-cell"></td>
+         <td style="text-align: center; padding-left: 3px; padding-right: 3px;">1</td>
+         <td style="width: 100%; padding-left: 3px; padding-right: 3px;"> <span>Female</span> </td>
+        </tr>
+        <tr>
+         <td class="response-note-cell"></td>
+         <td style="text-align: center; padding-left: 3px; padding-right: 3px;">2</td>
+         <td style="width: 100%; padding-left: 3px; padding-right: 3px;"> <span>Male</span> </td>
+        </tr>
+       </table>
+      </td>
+     </tr>
+     <tr class="gray entryRow">
+      <td style="height: 100%;">
+       <div style="height: 100%; width: 100%">
+        <table class="table borderless" style="height: 100%">
+         <tr>
+          <td class="spacer" style="background-color: #707070;"></td>
+          <td class="fieldCell" style="padding-left: 5px;"> <span>owner_age</span> </td>
+         </tr>
+        </table>
+       </div>
+      </td>
+      <td class="questionCell">Age of the owner in completed years <p class="hint">Note: -99 = refused</p></td>
+      <td class="answerCell response-note-cell"></td>
+     </tr>
+     <tr class="entryRow">
+      <td style="height: 100%;" colspan="3">
+       <div style="height: 100%; width: 100%">
+        <table class="table borderless" style="height: 100%">
+         <tr>
+          <td class="spacer" style="background-color: #707070;"></td>
+          <td style="padding-left: 5px; background-color: #8C8C8C; color: #FFFFFF;"> <span>Owner interview &gt; Members</span> <p class="relevance">Group relevant when: selected( ${vendor_open} , '1')</p> </td>
+         </tr>
+        </table>
+       </div>
+      </td>
+     </tr>
+     <tr class="gray entryRow">
+      <td style="height: 100%;">
+       <div style="height: 100%; width: 100%">
+        <table class="table borderless" style="height: 100%">
+         <tr>
+          <td class="spacer" style="background-color: #707070;"></td>
+          <td class="spacer" style="background-color: #8C8C8C;"></td>
+          <td style="padding-left: 5px; background-color: #A9A9A9; color: #333333;"> <span>Owner interview &gt; Members &gt; member (1)</span> <p class="relevance">Group relevant when: ${hh_size} &gt; 0</p> </td>
+         </tr>
+        </table>
+       </div>
+      </td>
+      <td style="padding-left: 5px; background-color: #A9A9A9; color: #333333;">(Repeated group)</td>
+     </tr>
+     <tr class="entryRow">
+      <td style="height: 100%;">
+       <div style="height: 100%; width: 100%">
+        <table class="table borderless" style="height: 100%">
+         <tr>
+          <td class="spacer" style="background-color: #707070;"></td>
+          <td class="spacer" style="background-color: #8C8C8C;"></td>
+          <td class="spacer" style="background-color: #A9A9A9;"></td>
+          <td class="fieldCell" style="padding-left: 5px;"> <span>member_helps</span> </td>
+         </tr>
+        </table>
+       </div>
+      </td>
+      <td class="questionCell">Does this member help in the business?</td>
+      <td>
+       <table class="table table-bordered table-condensed">
+        <tr>
+         <td class="response-note-cell"></td>
+         <td style="text-align: center; padding-left: 3px; padding-right: 3px;">1</td>
+         <td style="width: 100%; padding-left: 3px; padding-right: 3px;"> <span>Yes</span> </td>
+        </tr>
+        <tr>
+         <td class="response-note-cell"></td>
+         <td style="text-align: center; padding-left: 3px; padding-right: 3px;">0</td>
+         <td style="width: 100%; padding-left: 3px; padding-right: 3px;"> <span>No</span> </td>
+        </tr>
+       </table>
+      </td>
+     </tr>
+     <tr class="gray entryRow">
+      <td style="padding-left: 5px; background-color: #707070; color: #FFFFFF;" colspan="3"> <span>Wrap up</span> </td>
+     </tr>
+     <tr class="entryRow">
+      <td style="height: 100%;">
+       <div style="height: 100%; width: 100%">
+        <table class="table borderless" style="height: 100%">
+         <tr>
+          <td class="spacer" style="background-color: #707070;"></td>
+          <td class="fieldCell" style="padding-left: 5px;"> <span>end_time</span> </td>
+         </tr>
+        </table>
+       </div>
+      </td>
+      <td class="questionCell">Time the interview ended</td>
+      <td class="answerCell response-note-cell"></td>
+     </tr>
+    </tbody>
+   </table>
+  </div>
+ </body>
+</html>

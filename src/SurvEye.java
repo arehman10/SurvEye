@@ -103,7 +103,7 @@ public final class SurvEye {
             describe(config.questionnaire, config);
             return;
         }
-        QuestionnaireSpec spec = HtmlQuestionnaireParser.parseFile(config.questionnaire);
+        QuestionnaireSpec spec = QuestionnaireParser.parseFile(config.questionnaire);
         if (config.strict && !spec.warnings.isEmpty()) {
             throw new IllegalArgumentException("Strict mode rejected " + spec.warnings.size() + " questionnaire parser warning(s). Run describe to inspect them.");
         }
@@ -297,7 +297,7 @@ public final class SurvEye {
     }
 
     private static void describe(String questionnaire, DashboardConfig config) throws Exception {
-        QuestionnaireSpec spec = HtmlQuestionnaireParser.parseFile(questionnaire);
+        QuestionnaireSpec spec = QuestionnaireParser.parseFile(questionnaire);
         if (config != null && config.strict && !spec.warnings.isEmpty()) {
             throw new IllegalArgumentException("Strict mode rejected " + spec.warnings.size() + " questionnaire parser warning(s). Run describe without strict to inspect them.");
         }
@@ -310,7 +310,7 @@ public final class SurvEye {
         boolean print = config == null || !config.stataPlugin;
         if (print) {
             System.out.println();
-            System.out.println("Survey Solutions questionnaire");
+            System.out.println(spec.sourceFormat);
             System.out.println("  Title      " + spec.title);
             System.out.println("  Sections   " + spec.sections.size());
             System.out.println("  Questions  " + spec.questions.size());

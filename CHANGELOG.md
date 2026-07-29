@@ -14,6 +14,35 @@ self-contained HTML output; no new Stata options and no runtime network
 dependency are introduced. The release-specific engine is now
 `surveye_2_2_0.jar`.
 
+### Added — SurveyCTO questionnaires
+- `surveye`, `surveye describe`, and `surveye demo` now accept SurveyCTO
+  questionnaires alongside Survey Solutions previews, detected by content
+  rather than file extension. The ODK XForm form definition (XML) is parsed
+  precisely: titles, top-level groups as sections, nested groups as
+  subsections, repeats (flagged), binds and types, inline choice items,
+  itemsets over secondary instances, jr:itext translations (default
+  language), notes (skipped), and calculate fields (charted when typed).
+- SurveyCTO split select_multiple exports (`field_1`, `field_2`, ...) are
+  reassembled into multiselect charts automatically; single_one filters,
+  demo simulation, GPS candidates, and the profile table all work unchanged.
+- The printable SurveyCTO HTML form is read directly, certified against a
+  real production export: the printed Field/Question/Answer table, dark
+  top-level group rows as sections, breadcrumb subgroup rows (including
+  "(Repeated group)") as subsections with repeat scope, spacer-based
+  nesting depth, nested choice tables with codes and labels, relevance
+  captured as conditions, and hints kept out of labels. Printables do not
+  encode field types, so choice fields import as select_one and open,
+  note, or calculated fields as text; display-only notes drop
+  automatically when no data column matches, and one warning explains all
+  of it. Detection also recognizes the table layout structurally, so
+  exports that never mention SurveyCTO by name still parse. Panel
+  subtitles now show reader-facing type captions ("single-select",
+  "numeric decimal", "choice list") instead of internal tokens.
+  Unrecognized layouts fail with directions to the fully supported XML
+  definition. `tests/run_surveycto_tests.sh` covers describe, build, demo,
+  the printed table layout end to end, both negative paths, and Survey
+  Solutions regression, and runs in CI.
+
 ### Fixed
 - Refreshing the GitHub repository through the web uploader (which never
   deletes files) could leave the retired `surveye_2_1_3.jar` and the old

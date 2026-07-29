@@ -31,7 +31,9 @@ final class HtmlQuestionnaireParser {
                 "param", "source", "track", "wbr"
         };
         for (String tag : voidTags) VOID_TAGS.add(tag);
-        String[] attributes = new String[]{"class", "id", "href", "type", "name", "for", "alt", "lang"};
+        String[] attributes = new String[]{"class", "id", "href", "type", "name", "for", "alt", "lang",
+                "nodeset", "ref", "calculate", "relevant", "readonly", "default", "mediatype", "appearance",
+                "data-name", "data-field"};
         for (String attribute : attributes) KEPT_ATTRIBUTES.add(attribute);
     }
 
@@ -325,7 +327,7 @@ final class HtmlQuestionnaireParser {
         return Util.cleanText(value.toString());
     }
 
-    private static String cleanNodeText(Node node, String excludedDirectMarker) {
+    static String cleanNodeText(Node node, String excludedDirectMarker) {
         if (node == null) return "";
         StringBuilder value = new StringBuilder();
         appendText(node, value, node, excludedDirectMarker);
@@ -407,7 +409,7 @@ final class HtmlQuestionnaireParser {
         return null;
     }
 
-    private static Node firstByTag(Node node, String tag) {
+    static Node firstByTag(Node node, String tag) {
         if (node == null) return null;
         for (Node child : node.children) {
             if (child.isElement() && tag.equals(child.tag)) return child;
@@ -440,7 +442,7 @@ final class HtmlQuestionnaireParser {
         boolean special;
     }
 
-    private static final class Node {
+    static final class Node {
         final String tag;
         final String text;
         final Map<String, String> attributes;
@@ -488,7 +490,7 @@ final class HtmlQuestionnaireParser {
     }
 
     /** Small forgiving tokenizer/tree builder for the subset of HTML we need. */
-    private static final class MiniHtml {
+    static final class MiniHtml {
         private MiniHtml() {}
 
         static Node parse(String html) {
