@@ -9,7 +9,7 @@
 [Examples](example.do) ·
 [Changelog](CHANGELOG.md)
 
-![Production fieldwork dashboard for the Sri Lanka 2026 informal-sector survey — forest theme, emphasized title, task-team byline, 26,932 live-filtered interviews](docs/screenshots/informal-hero.png)
+![Production fieldwork dashboard Example — forest theme, emphasized title, task-team byline, 26,932 live-filtered interviews](docs/screenshots/informal-hero.png)
 
 <table>
   <tr>
