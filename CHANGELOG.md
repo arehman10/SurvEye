@@ -44,10 +44,12 @@ dependency are introduced. The release-specific engine is now
   Solutions regression, and runs in CI.
 
 ### Documentation
-- The README opens with a rendered screenshot gallery (`docs/screenshots/`):
-  the light and dark mastheads, the profile table with lens bars, a chart
-  section, and a `surveye demo` built from the bundled SurveyCTO form
-  definition — all captured from artifacts that ship in the repository.
+- The README opens with a screenshot gallery (`docs/screenshots/`): the
+  Sri Lanka 2026 informal-sector fieldwork dashboard masthead (forest
+  theme, byline, live filter count), `surveye demo` on the full B-READY
+  2025 Australia instrument with a simulated section of results, and an
+  informal-sector module band whose chart values are simulated so no
+  preliminary fieldwork results circulate.
 
 ### Fixed
 - Refreshing the GitHub repository through the web uploader (which never
