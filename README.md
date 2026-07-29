@@ -19,9 +19,7 @@
   <tr>
     <td colspan="2"><img src="docs/screenshots/informal-charts.png" alt="Informal-sector modules with a workforce histogram, a profit/loss donut, and custom indicators inferred from data"><br><sub>Questionnaire modules beside custom indicators (<code>customvars</code> and data-inferred cards) — the values shown here are simulated for publication</sub></td>
     <tr>
-      <tr>
-    <td colspan="2"><img src="docs/screenshots/informal-hero.png" alt="Informal-sector modules with a workforce histogram, a profit/loss donut, and custom indicators inferred from data"><br><sub>Questionnaire modules beside custom indicators (<code>customvars</code> and data-inferred cards) — the values shown here are simulated for publication</sub></td>
-  </tr>
+
 </table>
 
 <sub>The Australia previews use <code>surveye demo</code>'s clearly marked simulated data; the informal-sector hero shows a live fieldwork dashboard, and the chart values in the module screenshot are simulated so no preliminary results circulate.</sub>
