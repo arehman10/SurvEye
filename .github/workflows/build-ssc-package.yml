@@ -1,0 +1,146 @@
+name: Build SSC submission archive
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/build-ssc-package.yml
+      - surveye.ado
+      - surveye.sthlp
+      - surveye.jar
+      - surveye_*.jar
+      - example.do
+      - README.md
+      - LICENSE
+      - THIRDPARTY-LICENSES.md
+      - CHANGELOG.md
+      - surveye.pkg
+      - stata.toc
+
+permissions:
+  contents: write
+
+concurrency:
+  group: surveye-ssc-package-main
+  cancel-in-progress: false
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Validate release and build archive
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version="$(sed -n 's/^\*! version \([0-9][0-9.]*\).*/\1/p' surveye.ado | head -n 1)"
+          if [[ -z "$version" ]]; then
+            echo "Could not read the release version from surveye.ado" >&2
+            exit 1
+          fi
+
+          version_token="${version//./_}"
+          versioned_jar="surveye_${version_token}.jar"
+          archive="surveye_${version_token}_ssc.zip"
+          checksum="${archive}.sha256"
+
+          install_files=(
+            surveye.ado
+            surveye.sthlp
+            surveye.jar
+            "$versioned_jar"
+            example.do
+            README.md
+            LICENSE
+            THIRDPARTY-LICENSES.md
+            CHANGELOG.md
+          )
+
+          archive_files=(
+            "${install_files[@]}"
+            surveye.pkg
+            stata.toc
+          )
+
+          for file in "${archive_files[@]}"; do
+            if [[ ! -f "$file" ]]; then
+              echo "Required SSC file is missing: $file" >&2
+              exit 1
+            fi
+          done
+
+          grep -Fqx "d Version: ${version}" surveye.pkg
+          grep -Fq "version ${version}" surveye.sthlp
+          grep -Fq "*! version ${version}" surveye.ado
+
+          for file in "${install_files[@]}"; do
+            if [[ "$file" == *.jar ]]; then
+              grep -Fqx "F ${file}" surveye.pkg
+            else
+              grep -Fqx "f ${file}" surveye.pkg
+            fi
+          done
+
+          if ! cmp -s surveye.jar "$versioned_jar"; then
+            echo "surveye.jar and $versioned_jar are not byte-identical" >&2
+            exit 1
+          fi
+
+          unzip -tqq surveye.jar
+          unzip -tqq "$versioned_jar"
+
+          rm -f "$archive" "$checksum"
+          staging="$(mktemp -d)"
+          trap 'rm -rf "$staging"' EXIT
+          cp -- "${archive_files[@]}" "$staging/"
+
+          (
+            cd "$staging"
+            zip -X -9 "$GITHUB_WORKSPACE/$archive" "${archive_files[@]}"
+          )
+
+          zip -T "$archive"
+
+          printf '%s\n' "${archive_files[@]}" | LC_ALL=C sort > expected-files.txt
+          unzip -Z1 "$archive" | LC_ALL=C sort > archived-files.txt
+          diff -u expected-files.txt archived-files.txt
+          rm -f expected-files.txt archived-files.txt
+
+          sha256sum "$archive" > "$checksum"
+          echo "SSC_ARCHIVE=$archive" >> "$GITHUB_ENV"
+          echo "SSC_CHECKSUM=$checksum" >> "$GITHUB_ENV"
+
+      - name: Commit archive to main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- "$SSC_ARCHIVE" "$SSC_CHECKSUM"
+
+          if git diff --cached --quiet; then
+            echo "SSC archive is already current."
+            exit 0
+          fi
+
+          git commit -m "Add SurvEye SSC submission archive"
+          git push origin HEAD:main
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: surveye-ssc-submission
+          path: |
+            ${{ env.SSC_ARCHIVE }}
+            ${{ env.SSC_CHECKSUM }}
+          if-no-files-found: error
+          retention-days: 30
