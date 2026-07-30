@@ -73,7 +73,7 @@ net install surveye, from("https://raw.githubusercontent.com/arehman10/SurvEye/m
 discard
 ```
 
-After publication on SSC, the shorter equivalent will be:
+Install from Stata ssc Archive:
 
 ```stata
 ssc install surveye
