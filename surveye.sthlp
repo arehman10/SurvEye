@@ -1016,22 +1016,27 @@ dashboard remains usable when tiles are unavailable.
 
 
 {marker author}{...}
+
 {title:Author}
 
 {pstd}
-Attique Ur Rehman, Enterprise Analysis Unit, World Bank
+{bf:Attique Ur Rehman}, Economist{break}
+The World Bank {hline 1} Development Economics (DEC), Enterprise Surveys{break}
+Email: {browse "mailto:attique@worldbank.org":attique@worldbank.org}{break}
+Web: {browse "https://sites.google.com/view/attique-ur-rehman":https://sites.google.com/view/attique-ur-rehman}
+
+{title:Acknowledgments}
 
 {pstd}
-{browse "https://github.com/arehman10/SurvEye":SurvEye repository}  {c |}
-{browse "https://github.com/arehman10/SurvEye/issues":Support and bug reports}
+Thanks to {bf:Fahad Mirza} (World Bank / CERP,
+{browse "https://github.com/fahad-mirza":github.com/fahad-mirza}) for his insights
+and guidance, and for his self-contained Stata tooling ({cmd:sparkta},
+{cmd:wordcloud2}) that helped shape this package's design.
+
+
+{title:Also see}
 
 {pstd}
-Thanks to {browse "https://github.com/fahad-mirza":Fahad Mirza}
-(World Bank / CERP) for his insights and guidance, and for his self-contained
-Stata tooling, which helped shape the design of this package.
-
+Online: {browse "https://docs.mysurvey.solutions/headquarters/api/api-r-package/":Survey Solutions API documentation}{p_end}
 {pstd}
-This software is provided under the MIT License.  It is an independent utility;
-the views and dashboards produced with it do not necessarily represent the
-views of the World Bank, its Board of Executive Directors, or the governments
-they represent.  Survey Solutions is a World Bank data-collection platform.
+Help:  {helpb suso}, {helpb javacall}, {helpb import}, {helpb shell}{p_end}
