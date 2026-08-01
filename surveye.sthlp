@@ -1,5 +1,5 @@
 {smcl}
-{* *! version 2.2.0 27jul2026}{...}
+{* *! version 2.2.0 29jul2026}{...}
 {vieweralsosee "return" "help return"}{...}
 {vieweralsosee "weight" "help weight"}{...}
 {vieweralsosee "export delimited" "help export delimited"}{...}
@@ -814,8 +814,29 @@ weighted dashboards.  Only values already embedded in the file are exported,
 so the button adds no new disclosure surface; the privacy guidance above
 applies unchanged.{p_end}
 
-{phang2}{bf:Chart image download.}  Each panel has a small control that
-saves the chart as a PNG named after the variable.{p_end}
+{phang2}{bf:Customize any chart.}  The gear control on each card opens a
+small editor: rewrite the chart title, switch between bars and a donut
+where the two displays are statistically equivalent (single-select and
+yes/no cards), split the chart by any filter variable ({bf:Compare by}:
+categorical indicators become one composition bar per group and numeric
+indicators the median per group, honoring weights and the currency
+switch), choose an accent color, scale the chart fonts, and show or hide
+value labels, and pick a chart size (Compact to Extra tall) {c -} the
+chart area also grows automatically when a choice needs room, for example
+a donut or a compare-by split on a slim yes/no card.  The accent recolors
+the primary series of every chart family, including the affirmative side
+of yes/no cards and their splits.  Changes are presentation-only {c -} no
+estimate moves {c -} apply immediately, persist for that dashboard in the
+reader's browser, and reset per chart.{p_end}
+
+{phang2}{bf:Download chart (PNG).}  Each card downloads a presentation-ready
+image at double resolution: the full wrapped question title, a line with the
+variable name and the live filtered statistic, the chart as currently
+customized, the yes/no headline percentage and legend where applicable, and
+a source footer with the dashboard title and date.  Category labels are
+written out in full: donut downloads carry a complete legend below the
+chart, and bar downloads append any label the axis had to shorten.  The
+image follows the active light or dark theme.{p_end}
 
 {phang2}{bf:Navigation aids.}  {bf:Expand all} and {bf:Collapse all} in the
 section navigation open or close every section; a floating button returns to
@@ -1014,11 +1035,3 @@ This software is provided under the MIT License.  It is an independent utility;
 the views and dashboards produced with it do not necessarily represent the
 views of the World Bank, its Board of Executive Directors, or the governments
 they represent.  Survey Solutions is a World Bank data-collection platform.
-
-
-{title:Also see}
-
-{pstd}
-Online: {browse "https://docs.mysurvey.solutions/headquarters/api/api-r-package/":Survey Solutions API documentation}{p_end}
-{pstd}
-Help:  {helpb suso}, {helpb javacall}, {helpb import}, {helpb shell}{p_end}
