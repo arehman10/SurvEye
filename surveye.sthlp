@@ -1015,8 +1015,6 @@ internet connection, firewall, and access to the selected tile provider.  Try
 dashboard remains usable when tiles are unavailable.
 
 
-{marker author}{...}
-
 {title:Author}
 
 {pstd}
