@@ -1,0 +1,63 @@
+name: build
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      # bash-invoked throughout: files uploaded through the GitHub web UI
+      # lose their executable bit, and CI must not care.
+      - name: Build Java 8-compatible engine
+        run: bash build.sh
+
+      - name: Version-agnostic package contract
+        run: |
+          VERSION="$(sed -n 's/^VERSION="\(.*\)"$/\1/p' release.sh)"
+          test -n "$VERSION"
+          JAR="surveye_$(printf '%s' "$VERSION" | tr . _).jar"
+          echo "release version: $VERSION  jar: $JAR"
+          test -f "$JAR"
+          cmp surveye.jar "$JAR"
+          unzip -t surveye.jar > /dev/null
+          javap -classpath "$JAR" -public org.worldbank.surveye.StataPlugin > /dev/null
+          javap -classpath "$JAR" -public org.worldbank.surveye.AppearancePlugin > /dev/null
+          node --check src/resources/dashboard.js
+          node --check src/resources/configurator.js
+
+      - name: Test battery
+        run: |
+          bash tests/check_stata_source.sh
+          bash tests/check_package.sh
+          node tests/test_statistics.js
+          bash tests/test_appearance.sh
+          mkdir -p tests/fixtures
+          bash tests/run_engine_smoke.sh
+          rmdir tests/fixtures 2>/dev/null || true
+          bash tests/run_surveycto_tests.sh
+          bash tests/run_configurator_tests.sh
+
+      - name: SSC manifest files exist
+        run: |
+          awk '$1=="f" || $1=="F" { print $2 }' surveye.pkg |
+            while read -r file; do test -f "$file"; done
+
+      - name: Release archives
+        run: |
+          bash release.sh /tmp/surveye-release
+          VERSION="$(sed -n 's/^VERSION="\(.*\)"$/\1/p' release.sh)"
+          for suffix in "" -github -ssc; do
+            unzip -t "/tmp/surveye-release/surveye-$VERSION$suffix.zip" > /dev/null
+          done
