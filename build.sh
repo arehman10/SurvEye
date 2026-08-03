@@ -5,7 +5,7 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 BUILD="$ROOT/build/release"
 CLASSES="$BUILD/classes"
 GENERIC_JAR="$ROOT/surveye.jar"
-STATA_JAR="$ROOT/surveye_2_2_0.jar"
+STATA_JAR="$ROOT/surveye_2_3_0.jar"
 
 mkdir -p "$CLASSES"
 # Remove both files and directories from earlier builds.  Keeping only files
@@ -20,6 +20,8 @@ java -m jdk.compiler/com.sun.tools.javac.Main \
 
 cp "$ROOT"/src/resources/dashboard.css "$CLASSES/resources/"
 cp "$ROOT"/src/resources/dashboard.js "$CLASSES/resources/"
+cp "$ROOT"/src/resources/configurator.css "$CLASSES/resources/"
+cp "$ROOT"/src/resources/configurator.js "$CLASSES/resources/"
 cp "$ROOT"/src/resources/chart.umd.js "$CLASSES/resources/"
 cp "$ROOT"/src/resources/CHARTJS-LICENSE.md "$CLASSES/resources/"
 cp "$ROOT"/src/resources/leaflet.css "$CLASSES/resources/"

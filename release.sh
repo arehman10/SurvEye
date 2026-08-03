@@ -4,7 +4,7 @@ set -euo pipefail
 # Build clean source and SSC-ready archives without copying retired artifacts
 # that may still exist in a developer's working directory.
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-VERSION="2.2.0"
+VERSION="2.3.0"
 OUTPUT="${1:-$ROOT/../release}"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/surveye-release.XXXXXX")"
 SOURCE_NAME="surveye-$VERSION"
@@ -15,7 +15,7 @@ cleanup() {
   find "$WORK" -mindepth 1 -delete 2>/dev/null || true
   rmdir "$WORK" 2>/dev/null || true
 }
-trap cleanup EXIT HUP INT TERM
+[ -z "${SURVEYE_KEEP_STAGING:-}" ] && trap cleanup EXIT HUP INT TERM
 
 "$ROOT/build.sh"
 "$ROOT/tests/check_stata_source.sh"
@@ -37,18 +37,19 @@ rsync -a \
 
 # Keep exactly the current release-specific JAR even when an older versioned
 # JAR remains in a developer's working tree for local compatibility testing.
-cp -p "$ROOT/surveye_2_2_0.jar" "$WORK/$SOURCE_NAME/"
+cp -p "$ROOT/surveye_2_3_0.jar" "$WORK/$SOURCE_NAME/"
 
 # GitHub accepts the same clean source tree, but the upload archive must be
 # flat so README.md, stata.toc, and surveye.pkg land at the repository root.
 rsync -a "$WORK/$SOURCE_NAME/" "$WORK/$GITHUB_NAME/"
 
-cp -p "$ROOT/stata.toc" "$ROOT/surveye.pkg" "$WORK/$SSC_NAME/"
-while IFS= read -r relative; do
-  [ -n "$relative" ] || continue
-  mkdir -p "$WORK/$SSC_NAME/$(dirname "$relative")"
+# SSC submissions must not include .pkg or stata.toc (the archive generates
+# both), and only files the installed package needs belong here. The generic
+# surveye.jar is a GitHub convenience the command never loads.
+SSC_FILES="surveye.ado surveye.sthlp surveye_2_3_0.jar example.do LICENSE THIRDPARTY-LICENSES.md"
+for relative in $SSC_FILES; do
   cp -p "$ROOT/$relative" "$WORK/$SSC_NAME/$relative"
-done < <(awk '$1 == "f" || $1 == "F" { print $2 }' "$ROOT/surveye.pkg")
+done
 
 (
   cd "$WORK"
@@ -65,23 +66,34 @@ done < <(awk '$1 == "f" || $1 == "F" { print $2 }' "$ROOT/surveye.pkg")
   zip -X -qr "$WORK/$SSC_NAME.zip" .
 )
 
-if unzip -Z1 "$WORK/$SOURCE_NAME.zip" | grep -Eiq '(^|/)(suso_dashboard|surveydash)[^/]*$'; then
+# List each archive exactly once. Piping unzip straight into grep -q looks
+# equivalent but is not: grep -q exits at the first match, unzip dies of
+# SIGPIPE, and under pipefail a successful match then reads as failure --
+# nondeterministically, depending on pipe buffering.
+SOURCE_LIST="$WORK/source-list.txt"
+GITHUB_LIST="$WORK/github-list.txt"
+SSC_LIST="$WORK/ssc-list.txt"
+unzip -Z1 "$WORK/$SOURCE_NAME.zip" > "$SOURCE_LIST"
+unzip -Z1 "$WORK/$GITHUB_NAME.zip" > "$GITHUB_LIST"
+unzip -Z1 "$WORK/$SSC_NAME.zip" > "$SSC_LIST"
+
+if grep -Eiq '(^|/)(suso_dashboard|surveydash)[^/]*$' "$SOURCE_LIST"; then
   echo "FAIL: retired installable filename entered the source release" >&2
   exit 1
 fi
-if unzip -Z1 "$WORK/$GITHUB_NAME.zip" | grep -Eiq '(^|/)(suso_dashboard|surveydash)'; then
+if grep -Eiq '(^|/)(suso_dashboard|surveydash)' "$GITHUB_LIST"; then
   echo "FAIL: retired installable filename entered the GitHub release" >&2
   exit 1
 fi
-if unzip -Z1 "$WORK/$SSC_NAME.zip" | grep -Eiq '(^|/)(suso_dashboard|surveydash)'; then
+if grep -Eiq '(^|/)(suso_dashboard|surveydash)' "$SSC_LIST"; then
   echo "FAIL: retired installable filename entered the SSC release" >&2
   exit 1
 fi
 
 for required in README.md stata.toc surveye.pkg surveye.ado surveye.sthlp \
-  surveye.jar surveye_2_2_0.jar example.do LICENSE \
+  surveye.jar surveye_2_3_0.jar example.do LICENSE \
   THIRDPARTY-LICENSES.md CHANGELOG.md; do
-  if ! unzip -Z1 "$WORK/$GITHUB_NAME.zip" | grep -Fxq "$required"; then
+  if ! grep -Fxq "$required" "$GITHUB_LIST"; then
     echo "FAIL: GitHub archive is missing root file $required" >&2
     exit 1
   fi
@@ -89,14 +101,8 @@ done
 
 EXPECTED="$WORK/ssc-expected.txt"
 ACTUAL="$WORK/ssc-actual.txt"
-{
-  printf '%s\n' stata.toc surveye.pkg
-  awk '$1 == "f" || $1 == "F" { print $2 }' "$ROOT/surveye.pkg"
-} | LC_ALL=C sort -u > "$EXPECTED"
-unzip -Z1 "$WORK/$SSC_NAME.zip" \
-  | sed '/\/$/d' \
-  | sed 's#^\./##' \
-  | LC_ALL=C sort -u > "$ACTUAL"
+printf '%s\n' $SSC_FILES | LC_ALL=C sort -u > "$EXPECTED"
+sed '/\/$/d; s#^\./##' "$SSC_LIST" | LC_ALL=C sort -u > "$ACTUAL"
 if ! diff -u "$EXPECTED" "$ACTUAL"; then
   echo "FAIL: SSC archive inventory does not match surveye.pkg" >&2
   exit 1

@@ -7,7 +7,48 @@ semantic versioning.
 
 ## [Unreleased]
 
-## [2.2.0] — 2026-07-27
+## [2.3.0] — in development
+
+### Fixed
+- Pooled-scale datasets exhausted the Java heap while loading the CSV —
+  31 million cells stored as 31 million separate string objects — so
+  builds died with `OutOfMemoryError: Java heap space` inside Stata's
+  default ceiling. The CSV reader now interns repeated cell values into
+  shared strings: a 150,000-row regression fixture builds inside a
+  deliberately capped 160 MB heap. When memory does run out, the bridge
+  error now states the remedy (`set java_heapmax 4g, permanently`, then
+  restart Stata), and the help file gained a Troubleshooting entry.
+- Per-chart compare-by splits truncated high-cardinality groupers
+  silently and arbitrarily: the first 14 levels in dataset order, which
+  for a country-sorted pooled file meant Afghanistan through Belize.
+  Splits now rank groups by weighted frequency, show the largest 20, and
+  disclose the truncation in the stat line ("largest 20 of 40 groups",
+  localized). For all-groups views, `tableby()` and country filters
+  remain the right tools.
+- Pooled legacy datasets (surveys aggregated from pre-Stata 14 files) can
+  carry extended-ASCII bytes in value labels and string cells; the
+  engine's strict UTF-8 readers died on the first such byte with the
+  opaque `surveye: Input length = 1` (a Java MalformedInputException)
+  before any status was written. Config and CSV reads now decode
+  leniently (invalid bytes become U+FFFD), and the Stata wrapper
+  additionally repairs label text with `ustrfix()` at the emission
+  source, so a stray en dash from 2006 can never kill a 2026 build.
+  Regression-tested with raw `0x96`/`0xE9` bytes in both files.
+
+### Added
+- `surveye configure using "questionnaire"` writes a self-contained,
+  offline HTML configurator: the parsed questionnaire (Survey Solutions
+  preview, SurveyCTO form definition, or SurveyCTO printable) opens as a
+  searchable, section-grouped item list with type badges and repeat
+  flags, and point-and-click builders assemble the full command —
+  variable selection, chart-type overrides, variable groups offered only
+  across compatible single-selects, comparisons with the 2–5 level rule
+  enforced as you click, filters, weights, USD conversion, titles,
+  byline, language, and theme — composing a ready-to-run `surveye`
+  command line (copy or download as a .do file) plus an engine config TSV
+  for advanced pipelines. Selections persist locally per questionnaire.
+
+## [2.2.0] — 2026-07-29
 
 Reader-facing feature release. Every addition works inside the existing
 self-contained HTML output; no new Stata options and no runtime network
@@ -51,7 +92,80 @@ dependency are introduced. The release-specific engine is now
   informal-sector module band whose chart values are simulated so no
   preliminary fieldwork results circulate.
 
+### Added — in-place chart customization and presentation-ready exports
+- Every chart carries a Customize popover (⚙): switch between bars and a
+  donut where the two are statistically equivalent (single-select and
+  yes/no cards), pick an accent color, scale chart fonts, and toggle value
+  labels, rewrite the chart title in place — the edited title shows on
+  the card, feeds the PNG download, and survives reloads — and split any
+  eligible chart by a filter variable with "Compare by": a categorical
+  indicator becomes one 100% composition bar per group (city, gender, ...)
+  with a shared legend, and a numeric indicator becomes the median per
+  group, honoring weights and the currency toggle. The split respects
+  every active filter except the grouping variable itself, so filtering to
+  one city never collapses a by-city view, and clearing the split restores
+  the original chart.
+- A Chart size control (Compact / Default / Tall / Extra tall) resizes any
+  chart's drawing area, and a sizing engine grows the area automatically
+  when a preference demands room: switching a slim yes/no card to a donut,
+  or splitting it by a filter variable, now gets a properly sized chart
+  instead of a squeezed arc or overlapping labels crushed into the
+  42-pixel split-bar strip. Custom sizes persist, reset cleanly, and get a
+  sane fixed height in print.
+- The accent color now recolors every chart family: the affirmative series
+  of yes/no cards and their compare-by splits (matched by the
+  questionnaire's affirmative codes, not data order), the leading donut
+  slice, the Answered side of completion cards, the date trend line, the
+  primary (affirmative) series of grouped families, and the first level of
+  configured comparisons — verified pixel-by-pixel across all nine chart
+  kinds in a headless browser. Changes are
+  presentation-only — estimates never move — apply instantly, persist per
+  dashboard in the reader's browser, and can be reset per chart. Localized
+  in English, Arabic, and Urdu; hidden in print.
+- The per-chart PNG download was redesigned. It previously exported the
+  bare canvas with a single clipped title line, so yes/no cards lost their
+  headline percentage and legend (rendered in the page, not the canvas)
+  and long questions were cut off. Downloads now compose a
+  presentation-ready image at 2× resolution: the wrapped question title,
+  a meta line with the variable name and live filtered statistics, the
+  chart, the yes/no summary figure and legend where applicable, and a
+  source footer with the dashboard title and date — all following the
+  active theme and any per-chart customization. Labels are complete:
+  titles wrap up to eight lines instead of clipping, bar axis labels wrap
+  to three wider lines on comfortable density, donut downloads replace the
+  space-shortened in-canvas legend with a full legend below the chart
+  (every category written out with its share), and bar downloads append
+  any label the axis still had to truncate, written in full. Export
+  failures now surface on the browser console instead of failing
+  silently.
+
 ### Fixed
+- SurveyCTO printable forms cannot encode field types, so their open
+  fields import as text; the Stata side has always sent each selected
+  variable's storage type, `%t` format, and value labels, but the engine
+  only consulted that metadata for variables absent from the
+  questionnaire. Questionnaire-present questions now take those overrides
+  too — gated so they only fill gaps: a printable's text-typed open field
+  promotes to numeric, date, or labelled categories (disclosed as "typed
+  …" in the panel caption), while types declared by an XML form or a
+  Survey Solutions questionnaire remain authoritative and are never
+  re-typed (a labelled numeric would otherwise flip a histogram into
+  bars). Verified against SurveyCTO's rosters sample printable (JSI
+  variant), whose colored-spacer depth encoding, `#8C8C8C` roster
+  headers, and breadcrumb repeat markers are now a permanent parser
+  fixture; the SurveyCTO suite grew to 9 checks.
+- `release.sh` verified its archives with `unzip -Z1 | grep -q` pipelines:
+  under `pipefail`, `grep -q` exiting at the first match kills `unzip` with
+  SIGPIPE, so a file that was present could nondeterministically report as
+  missing. Each archive is now listed once to a file and checked from that
+  list. The SSC archive composition was also corrected to the official
+  submission rules: only `surveye.ado`, `surveye.sthlp`,
+  `surveye_2_2_0.jar`, `example.do`, `LICENSE`, and
+  `THIRDPARTY-LICENSES.md` -- never `surveye.pkg` or `stata.toc` (the
+  archive generates both) and never the GitHub-only generic `surveye.jar`.
+  `tests/stata_smoke.do` now runs under `set varabbrev off`, matching the
+  SSC requirement, and `SURVEYE_KEEP_STAGING=1` preserves release staging
+  for inspection.
 - Refreshing the GitHub repository through the web uploader (which never
   deletes files) could leave the retired `surveye_2_1_3.jar` and the old
   workflow in place, failing CI with a cryptic `cmp` byte difference.

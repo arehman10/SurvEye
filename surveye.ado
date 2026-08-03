@@ -1,4 +1,4 @@
-*! version 2.2.0 29jul2026
+*! version 2.3.0 02aug2026
 
 program define surveye, rclass
     version 16.0
@@ -20,6 +20,12 @@ program define surveye, rclass
 
     if `"`subcmd'"' == "demo" {
         _surveye_demo `rest'
+        return add
+        exit
+    }
+
+    if `"`subcmd'"' == "configure" {
+        _surveye_configure `rest'
         return add
         exit
     }
@@ -979,7 +985,7 @@ program define _surveye_main, rclass
     if missing(`outN') return scalar N = `sample_N'
     return scalar sample_N = `sample_N'
     return scalar weighted = `weighted'
-    return local package_version "2.2.0"
+    return local package_version "2.3.0"
 end
 
 
@@ -987,7 +993,7 @@ program define _surveye_apply_appearance
     version 16.0
     args output theme background typography corners shadow motion pagewidth
 
-    local jarname "surveye_2_2_0.jar"
+    local jarname "surveye_2_3_0.jar"
     capture findfile `jarname'
     if _rc {
         display as error "`jarname' is not installed on the Stata ado-path"
@@ -1101,7 +1107,75 @@ program define _surveye_describe, rclass
     _surveye_read_status using `"`statusfile'"'
     return add
     if `"`macval(outquestionnaire)'"' == "" return local questionnaire `"`macval(using)'"'
-    return local package_version "2.2.0"
+    return local package_version "2.3.0"
+end
+
+
+program define _surveye_configure, rclass
+    version 16.0
+
+    syntax using/ [, SAVing(string) REPLACE OPEN]
+
+    capture confirm file `"`using'"'
+    if _rc {
+        display as error `"surveye: questionnaire file not found: `using'"'
+        exit 601
+    }
+
+    if strtrim(`"`saving'"') == "" {
+        display as error "surveye configure: saving() is required"
+        display as error `"  Example: surveye configure using "form.xml", saving("configure.html")"'
+        exit 198
+    }
+    if ustrlower(strtrim(`"`saving'"')) == ustrlower(strtrim(`"`using'"')) {
+        display as error "surveye: saving() may not overwrite the questionnaire"
+        exit 198
+    }
+    if `"`replace'"' == "" {
+        capture confirm new file `"`saving'"'
+        if _rc {
+            display as error `"surveye: output file already exists: `saving'"'
+            display as error "Specify {bf:replace} or choose another saving() filename."
+            exit 602
+        }
+    }
+
+    tempfile configfile statusfile
+    local replaceflag = (`"`replace'"' != "")
+    tempname cfg
+    file open `cfg' using `"`configfile'"', write text replace
+    _surveye_cfgline `cfg' mode             `"configure"'
+    _surveye_cfgline `cfg' questionnaire    `"`macval(using)'"'
+    _surveye_cfgline `cfg' output           `"`macval(saving)'"'
+    _surveye_cfgline `cfg' status           `"`macval(statusfile)'"'
+    _surveye_cfgline `cfg' replace          `"`macval(replaceflag)'"'
+    // The configurator marks items present in the data in memory and offers
+    // numeric columns as weight candidates.
+    quietly describe, varlist
+    local memoryvars `r(varlist)'
+    foreach memoryvar of local memoryvars {
+        local memorykind "numeric"
+        capture confirm string variable `memoryvar'
+        if !_rc local memorykind "string"
+        _surveye_cfgline `cfg' datavar.`memoryvar' `"`memorykind'"'
+    }
+    file close `cfg'
+
+    _surveye_invoke `"`configfile'"' `"`statusfile'"' `""'
+
+    display as text _newline "{hline 72}"
+    display as result "OK" as text "  Configurator saved"
+    display as text `"    File             "' as result `"`macval(saving)'"'
+    display as text "    Open it in a browser, point and click, then copy the command."
+    display as text "{hline 72}"
+    if `"`open'"' != "" {
+        capture noisily view browse `"`macval(saving)'"'
+    }
+
+    _surveye_read_status using `"`statusfile'"'
+    return add
+    return local configurator `"`macval(saving)'"'
+    return local package_version "2.3.0"
 end
 
 
@@ -1349,7 +1423,7 @@ program define _surveye_demo, rclass
         return local filename `"`macval(saving)'"'
     }
     if `"`macval(outquestionnaire)'"' == "" return local questionnaire `"`macval(using)'"'
-    return local package_version "2.2.0"
+    return local package_version "2.3.0"
 end
 
 
@@ -1371,6 +1445,9 @@ program define _surveye_custommeta
         else if `"`valuelabel'"' != "" local datatype "single"
     }
 
+    // Pooled pre-Stata 14 datasets can carry extended-ASCII bytes in labels;
+    // repair them so the engine's UTF-8 config never sees invalid input.
+    mata: st_local("variablelabel", ustrfix(st_local("variablelabel")))
     _surveye_cfgline `handle' datalabel.`variable' `"`macval(variablelabel)'"'
     _surveye_cfgline `handle' datatype.`variable'  `"`datatype'"'
     if `"`datatype'"' == "date" ///
@@ -1393,6 +1470,7 @@ program define _surveye_custommeta
                         if _rc | strtrim(`"`macval(labeltext)'"') == "" {
                             local labeltext `"`onelevel'"'
                         }
+                        mata: st_local("labeltext", ustrfix(st_local("labeltext")))
                         _surveye_cfgline `handle' datavalue.`variable'.`valueindex' ///
                             `"`onelevel'::`macval(labeltext)'"'
                     }
@@ -1420,7 +1498,7 @@ program define _surveye_invoke, rclass
     version 16.0
     args configfile statusfile diagnostics
 
-    local jarname "surveye_2_2_0.jar"
+    local jarname "surveye_2_3_0.jar"
     capture findfile `jarname'
     if _rc {
         display as error "`jarname' is not installed on the Stata ado-path"
