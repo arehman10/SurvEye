@@ -2,10 +2,11 @@
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+. "$ROOT/scripts/version.sh"
 FIXTURES=${1:-"$ROOT/tests/fixtures"}
 BUILD=$(mktemp -d "${TMPDIR:-/tmp}/surveye-engine.XXXXXX")
 trap 'rm -rf "$BUILD"' EXIT HUP INT TERM
-ENGINE_JAR="$ROOT/surveye_2_2_0.jar"
+ENGINE_JAR="$ROOT/$SURVEYE_RELEASE_JAR"
 CLI_JAR="$ROOT/surveye.jar"
 
 if [ ! -f "$ENGINE_JAR" ] || [ ! -f "$CLI_JAR" ]; then
@@ -35,7 +36,9 @@ java -m jdk.compiler/com.sun.tools.javac.Main --release 8 \
   "$ROOT/tests/MapFilterLocalizationContractTest.java" \
   "$ROOT/tests/CalculatedVariableLabelContractTest.java" \
   "$ROOT/tests/CompositePanelContractTest.java" \
-  "$ROOT/tests/NumericDistributionContractTest.java"
+  "$ROOT/tests/NumericDistributionContractTest.java" \
+  "$ROOT/tests/AuditJavaRegressionTest.java" \
+  "$ROOT/tests/SourceRecoveryContractTest.java"
 
 java -cp "$BUILD:$ENGINE_JAR" StataEntryPointSmokeTest "$ROOT" "$FIXTURES"
 java -cp "$BUILD:$ENGINE_JAR" DashboardI18nTest
@@ -47,6 +50,8 @@ java -cp "$BUILD:$ENGINE_JAR" MapFilterLocalizationContractTest "$ROOT"
 java -cp "$BUILD:$ENGINE_JAR" CalculatedVariableLabelContractTest "$ROOT"
 java -cp "$BUILD:$ENGINE_JAR" CompositePanelContractTest "$FIXTURES"
 java -cp "$BUILD:$ENGINE_JAR" NumericDistributionContractTest
+java -cp "$BUILD:$ENGINE_JAR" AuditJavaRegressionTest "$ROOT"
+java -cp "$BUILD:$ENGINE_JAR" SourceRecoveryContractTest "$ROOT"
 
 # Run the adapter without the default-package engine on its class path.  This
 # forces a bridge-level ClassNotFoundException and verifies that even a linkage
@@ -59,9 +64,13 @@ java -cp "$BUILD/bridge-only:$BUILD" StataBridgeLinkageTest
 # Exercise the real CLI entry point as a separate process.  In describe mode,
 # a status/config alias would truncate the configuration file if --config did
 # not register that input as protected before validation and status writing.
-QUESTIONNAIRE="$FIXTURES/English ES_B_READY_2025_Australia(4).html"
+QUESTIONNAIRE="$FIXTURES/synthetic-australia.html"
 if [ ! -f "$QUESTIONNAIRE" ]; then
-  QUESTIONNAIRE="$ROOT/tests/fixed_multi_questionnaire.html"
+  QUESTIONNAIRE="$FIXTURES/English ES_B_READY_2025_Australia(4).html"
+fi
+if [ ! -f "$QUESTIONNAIRE" ]; then
+  echo "Required Australia contract fixture is missing: $FIXTURES" >&2
+  exit 1
 fi
 CLI_CONFIG="$BUILD/cli-collision.tsv"
 CLI_CONFIG_BEFORE="$BUILD/cli-collision.before"

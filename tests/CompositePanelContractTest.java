@@ -44,12 +44,13 @@ public final class CompositePanelContractTest {
             check(built.model.panels.get(0).memberVariables().equals(Arrays.asList("srib8a", "srib8b", "srib8c")),
                     "Family member order changed.");
             check("discrete".equals(built.model.panels.get(1).kind), "Worker count was not inferred as discrete.");
-            check(built.model.metadata.get("workers").nonnegative, "Count metadata must exclude negative response codes.");
+            check(!built.model.metadata.get("workers").nonnegative,
+                    "Count presentation must not silently exclude undeclared negative values.");
             check(built.model.familyPanels == 1 && built.model.comparisonPanels == 0, "Composite counters are wrong.");
             String html = DashboardRenderer.render(built.model, built.data);
             check(html.contains("data-kind=\"family\"") && html.contains("data-members=\"srib8a srib8b srib8c\""),
                     "Family renderer contract is missing.");
-            check(html.contains("data-kind=\"discrete\"") && html.contains("\"nonnegative\":true"),
+            check(html.contains("data-kind=\"discrete\"") && html.contains("\"nonnegative\":false"),
                     "Discrete renderer metadata is missing.");
             check(html.contains("\"families\":{\"family-srib8a\""), "Family runtime config is missing.");
 
@@ -95,7 +96,8 @@ public final class CompositePanelContractTest {
             check("hist".equals(histogram.model.metadata.get("workers").kind),
                     "continuous() did not override automatic count inference.");
 
-            if (args.length > 0) verifySurveySolutionsFixture(Paths.get(args[0]), temporary);
+            verifySurveySolutionsFixture(args.length > 0 ? Paths.get(args[0])
+                    : Paths.get("tests", "fixtures"), temporary);
 
             System.out.println("PASS grouped family, comparison, and discrete-count contracts");
         } finally {
@@ -104,8 +106,11 @@ public final class CompositePanelContractTest {
     }
 
     private static void verifySurveySolutionsFixture(Path fixtures, Path temporary) throws Exception {
-        Path questionnaire = fixtures.resolve("English Global_informal2026(4).html");
-        if (!Files.isRegularFile(questionnaire)) return;
+        Path questionnaire = fixtures.resolve("synthetic-informal-en.html");
+        if (!Files.isRegularFile(questionnaire)) {
+            questionnaire = fixtures.resolve("English Global_informal2026(4).html");
+        }
+        check(Files.isRegularFile(questionnaire), "Required family fixture is missing: " + fixtures);
         QuestionnaireSpec parsed = HtmlQuestionnaireParser.parseFile(questionnaire.toString());
         Path csv = temporary.resolve("srib8.csv");
         Files.write(csv, Arrays.asList(
@@ -118,9 +123,9 @@ public final class CompositePanelContractTest {
         config.variables = "srib8a srib8b srib8c";
         DashboardBuilder.Result built = DashboardBuilder.build(parsed, CsvTable.read(csv.toString()), config);
         check(built.model.panels.size() == 1 && "family".equals(built.model.panels.get(0).kind),
-                "Real Survey Solutions srib8a/b/c fixture was not grouped.");
+                "Survey Solutions HTML srib8a/b/c fixture was not grouped.");
         check(built.model.panels.get(0).fullLabel.toLowerCase().contains("following"),
-                "Real Survey Solutions battery prompt was not used as the family title.");
+                "Survey Solutions HTML battery prompt was not used as the family title.");
     }
 
     private static DashboardConfig config(Path output) {
@@ -146,6 +151,9 @@ public final class CompositePanelContractTest {
         workers.label = "How many workers does this business have?";
         workers.type = "numeric";
         workers.rawType = "numeric: integer";
+        // A special response must be declared by the questionnaire; chart
+        // wording and discrete presentation no longer discard every negative.
+        workers.options.add(new QuestionOption("-9", "Don't know", true));
         workers.section = section.title;
         workers.sectionNumber = 1;
         add(spec, section, workers);

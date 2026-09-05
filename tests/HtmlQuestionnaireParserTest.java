@@ -17,7 +17,7 @@ public final class HtmlQuestionnaireParserTest {
     public static void main(String[] args) throws Exception {
         Path expected = args.length > 0 ? Paths.get(args[0])
                 : Paths.get("tests", "parser_expected.tsv");
-        Path upload = args.length > 1 ? Paths.get(args[1]) : Paths.get("upload");
+        Path upload = args.length > 1 ? Paths.get(args[1]) : Paths.get("tests", "fixtures");
 
         Map<String, QuestionnaireSpec> parsed = new LinkedHashMap<String, QuestionnaireSpec>();
         List<String> lines = Files.readAllLines(expected, StandardCharsets.UTF_8);
@@ -60,8 +60,12 @@ public final class HtmlQuestionnaireParserTest {
         QuestionnaireSpec english = parsed.get("English Global_informal2026(4).html");
         QuestionnaireSpec sinhala = parsed.get("siNhl Global_informal2026.html");
         QuestionnaireSpec trg = parsed.get("English TRG_2025.html");
+        if (australia == null) australia = parsed.get("synthetic-australia.html");
+        if (english == null) english = parsed.get("synthetic-informal-en.html");
+        if (sinhala == null) sinhala = parsed.get("synthetic-informal-si.html");
+        if (trg == null) trg = parsed.get("synthetic-trg.html");
         check(australia != null && english != null && sinhala != null && trg != null,
-                "All four named regression fixtures must be present");
+                "All four parser contract fixtures must be present");
 
         assertOption(australia, "Desk_Complete", "01", false);
         assertOption(australia, "d31x", "0004", false);

@@ -1,5 +1,5 @@
 mode	build
-questionnaire	../upload/English ES_B_READY_2025_Australia(4).html
+questionnaire	tests/fixtures/synthetic-australia.html
 data	tests/synthetic_australia.csv
 output	build/weighted_v2.html
 status	build/weighted_v2_status.tsv

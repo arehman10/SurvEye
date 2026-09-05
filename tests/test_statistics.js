@@ -296,7 +296,7 @@ function numericRefreshCanvas(variable, kind = "hist") {
   return { getAttribute: (name) => ({ "data-variable": variable, "data-kind": kind }[name] ?? null) };
 }
 function statsNode(tagName) {
-  const node = { tagName, children: [], attributes: {} };
+  const node = { tagName, children: [], attributes: {}, style: {} };
   let ownText = "";
   Object.defineProperty(node, "textContent", {
     get: () => ownText,
@@ -585,8 +585,8 @@ const countGuide = compositeChart.options.plugins.threeSdGuide;
 equal(countGuide.mean, 5.9, "discrete three-SD guide uses current mean");
 equal(stats.meanPlusThreeSd(countGuide, countGuide.minimum, countGuide.maximum), null,
   "discrete three-SD guide is omitted when outside the domain");
-equal(stats.numericStatistics(stats.numericValues("count", context.DATA), context.DATA.length).meanPlusThreeSd,
-  null, "Stats suppresses a three-SD value that has no matching chart guide");
+close(stats.numericStatistics(stats.numericValues("count", context.DATA), context.DATA.length).meanPlusThreeSd,
+  countGuide.mean + 3 * countGuide.sd, 1e-12, "Stats retains a defined three-SD value outside chart range");
 equal(exactCountBars.reduce((sum, point) => sum + point.raw, 0), 10,
   "exact discrete raw mass conservation");
 
@@ -768,4 +768,190 @@ equal(month(2025, "%ty"), "2025-01", "Stata yearly value");
 context.META.d = { format: "%td", special: ["999"], missing: ["999"] };
 equal(stats.monthKey("d", 999), null, "date configured-missing exclusion");
 
+// Regression: a distribution's headline has the same numerical meaning when
+// its presentation switches from a histogram to exact discrete counts.
+config.weighted = false;
+config.weightType = "";
+stats.setWeightsEnabled(false);
+context.META.employee_count = { kind: "discrete", missing: [], special: [], labels: {} };
+const employeeRows = [{ employee_count: 10 }, { employee_count: 20 }, { employee_count: 20 }];
+let employeeSummary = stats.summary("employee_count", employeeRows);
+equal(employeeSummary.value, "20", "discrete headline median");
+equal(employeeSummary.statistic, "Median", "discrete headline statistic is explicit");
+equal(employeeSummary.valid, 3, "discrete headline valid n");
+context.META.employee_count.kind = "hist";
+equal(stats.summary("employee_count", employeeRows).value, employeeSummary.value,
+  "histogram and discrete headline agree");
+
+// Completion is a share of all eligible interviews, including unanswered
+// responses, through table, highlight, filter and chart routes.
+context.META.notes = { kind: "completion", filterMode: "completion", missing: [], labels: { true: "Answered", false: "Missing" } };
+const completionRows = [{ notes: true, _w: 1 }, { notes: null, _w: 2 }, { notes: null, _w: 3 }];
+close(stats.profileMetric("notes", "auto", completionRows).value, 100 / 3, 1e-12, "completion table denominator includes missing");
+equal(stats.highlight("notes", completionRows).value, "33.3%", "completion headline");
+equal(stats.summary("notes", completionRows).excluded, 2, "completion summary unanswered n");
+close(stats.profileMetric("notes", "share:Missing", completionRows).value, 200 / 3, 1e-12, "completion missing-share denominator");
+equal(stats.profileMetric("notes", "auto", [{ notes: null }, { notes: null }]).value, 0,
+  "entirely unanswered completion rate is zero");
+equal(stats.profileMetric("notes", "auto", []).value, null, "empty completion rate is undefined");
+equal(stats.profileLevels("notes", completionRows).join(","), "true,false", "completion grouping retains missing level");
+config.weighted = true;
+config.weightType = "aweight";
+stats.setWeightsEnabled(true);
+close(stats.profileMetric("notes", "auto", completionRows).value, 100 / 6, 1e-12, "weighted completion table denominator");
+equal(stats.highlight("notes", completionRows).value, "16.7%", "weighted completion headline agrees");
+context.DATA.splice(0, context.DATA.length, ...completionRows);
+stats.buildCompletion(compositeCanvas("notes_completion", "notes"), "notes");
+let regressionChart = ChartStub.instances.at(-1).config;
+close(regressionChart.data.datasets[0].data[0], 100 / 6, 1e-12, "weighted completion chart agrees");
+close(regressionChart.data.datasets[1].data[0], 500 / 6, 1e-12, "weighted completion chart missing share");
+
+// String codes preserve leading zeros in both comparisons and profile rows.
+config.weighted = false;
+stats.setWeightsEnabled(false);
+context.META.exact_code = { kind: "filter", filterMode: "scalar", canonicalCodes: false,
+  labels: { "01": "Code 01", "1": "Code 1" }, order: ["01", "1"], missing: [], special: [] };
+context.META.response = { kind: "yesno", labels: { "1": "Yes", "2": "No" }, order: ["1", "2"],
+  affirmative: ["1"], negative: ["2"], missing: [], special: [] };
+context.DATA.splice(0, context.DATA.length, { exact_code: "01", response: "1" }, { exact_code: "1", response: "2" });
+config.comparisons = { exact_comparison: { by: "exact_code", levels: ["01", "1"], members: ["response"] } };
+stats.buildComparison(compositeCanvas("exact_comparison", "response"));
+regressionChart = ChartStub.instances.at(-1).config;
+equal(regressionChart.data.datasets[0].data[0], 100, "comparison code 01 remains its own group");
+equal(regressionChart.data.datasets[1].data[0], 0, "comparison code 1 remains its own group");
+equal(stats.sameCategoryValue("exact_code", "01", "1"), false, "string category equality preserves leading zero");
+equal(stats.filterMatches("exact_code", "01", ["1"]), false, "scalar filter agrees with comparison");
+context.META.canonical_code = { filterMode: "scalar", canonicalCodes: true };
+equal(stats.sameCategoryValue("canonical_code", 1, "1.0"), true, "declared numeric category tokens agree");
+equal(stats.sameCategoryValue("canonical_code", null, 0), false, "missing category is not numeric zero");
+equal(stats.sameCategoryValue("canonical_code", "", 0), false, "blank category is not numeric zero");
+const profileRoot = statsNode("section"), profileTable = statsNode("table");
+profileRoot.querySelector = () => null;
+config.table = { enabled: true, by: "exact_code", variables: ["response"], stats: ["auto"] };
+documentStub.getElementById = id => id === "summary-profile" ? profileRoot : id === "summary-profile-table" ? profileTable : null;
+stats.renderProfileTable();
+const profileRows = profileTable.children[1].children;
+equal(profileRows[0].children[1].textContent, "1", "profile code 01 sample n");
+equal(profileRows[1].children[1].textContent, "1", "profile code 1 sample n");
+equal(profileRows[0].children[2].children[0].textContent, "100%", "profile code 01 affirmative share");
+equal(profileRows[1].children[2].children[0].textContent, "0%", "profile code 1 affirmative share");
+documentStub.getElementById = () => null;
+
+// A completion grouping includes unanswered interviews as its Missing group.
+context.DATA.splice(0, context.DATA.length, { notes: true, response: "1" }, { notes: null, response: "2" });
+config.comparisons = { completion_comparison: { by: "notes", levels: ["true", "false"], members: ["response"] } };
+stats.buildComparison(compositeCanvas("completion_comparison", "response"));
+regressionChart = ChartStub.instances.at(-1).config;
+equal(regressionChart.data.datasets[0].data[0], 100, "completion comparison answered group");
+equal(regressionChart.data.datasets[1].data[0], 0, "completion comparison missing group");
+
+// Exact internal fields are excluded. A valid underscore-prefixed variable
+// and any explicitly declared metadata field remain in the CSV schema.
+context.DATA.splice(0, context.DATA.length, { _income: 100, employee_count: 20, _w: 1,
+  _x: null, _y: null, _lat: 10, _lon: 20, _mapby: "A" });
+equal(stats.exportColumns().join(","), "_income,employee_count", "CSV retains ordinary underscore-prefixed variables");
+context.META._lat = { kind: "hist" };
+equal(stats.exportColumns().includes("_lat"), true, "CSV metadata identifies an explicitly declared field");
+delete context.META._lat;
+
+// Stats has no dependency on drawing limits; expanded frequency weights
+// yield the same SD as their equivalent expanded data.
+const shortDistribution = [{ value: 1, w: 1 }, { value: 2, w: 1 }, { value: 3, w: 1 }];
+equal(stats.numericStatistics(shortDistribution, 3).meanPlusThreeSd, 5, "Stats mean plus 3 SD outside observed range");
+equal(stats.meanPlusThreeSd({ mean: 2, sd: 1 }, 1, 3), null, "chart reference still respects drawing range");
+config.weighted = true;
+config.weightType = "fweight";
+stats.setWeightsEnabled(true);
+const replicated = stats.numericStatistics([{ value: 7, w: 3 }], 1);
+equal(replicated.sd, 0, "one raw row expanded by fweight has SD zero");
+equal(replicated.meanPlusThreeSd, 7, "constant weighted distribution threshold equals mean");
+equal(replicated.n, 1, "frequency expansion does not change valid raw n");
+equal(replicated.sd, stats.weightedStd([{ value: 7, w: 1 }, { value: 7, w: 1 }, { value: 7, w: 1 }], 7, 3),
+  "fweight SD agrees with expanded records");
+equal(stats.numericStatistics([{ value: 7, w: 1 }], 1).sd, null, "single expanded observation has undefined SD");
+config.weightType = "aweight";
+equal(stats.numericStatistics([{ value: 7, w: 3 }], 1).sd, null, "single aweight observation still has undefined SD");
+config.weighted = false;
+stats.setWeightsEnabled(false);
+const largeCounts = Array.from({ length: 200000 }, (_, index) => ({ value: index % 100, w: 1 }));
+const largePlan = stats.discreteDistributionPlan(largeCounts, { mean: 49.5, sd: 28.87 }, true);
+equal(largePlan.bins.reduce((n, bin) => n + bin.raw, 0), largeCounts.length, "large discrete distribution retains all observations");
+equal(largePlan.minimum, 0, "large discrete minimum");
+equal(largePlan.maximum, 99, "large discrete maximum");
+
+// The shipped reader preferences can split a completion or monetary numeric
+// indicator by a filter; they must use these same semantics without runtime
+// errors or a second currency conversion.
+documentStub.querySelector = () => null;
+context.META.city = { kind: "bar", filterMode: "scalar", order: ["A", "B"], labels: {}, missing: [], special: [] };
+context.DATA.splice(0, context.DATA.length,
+  { city: "A", notes: true, sales: 300 }, { city: "A", notes: null, sales: 900 },
+  { city: "B", notes: null, sales: 1500 });
+stats.panelPrefs.set("notes", "by", "city");
+const groupedCompletionCanvas = compositeCanvas("notes_by_city", "notes");
+groupedCompletionCanvas.attributes["data-kind"] = "completion";
+stats.buildByGroup(groupedCompletionCanvas, "notes");
+regressionChart = ChartStub.instances.at(-1).config;
+equal(regressionChart.data.datasets[0].data[0], 50, "reader grouped completion answered share");
+equal(regressionChart.data.datasets[1].data[1], 100, "reader grouped completion missing share");
+stats.panelPrefs.set("sales", "by", "city");
+stats.setUsdEnabled(true);
+const groupedSalesCanvas = compositeCanvas("sales_by_city", "sales");
+groupedSalesCanvas.attributes["data-kind"] = "hist";
+stats.buildByGroup(groupedSalesCanvas, "sales");
+regressionChart = ChartStub.instances.at(-1).config;
+equal(regressionChart.data.datasets[0].data[0], 2, "reader grouped USD median converted exactly once");
+equal(regressionChart.data.datasets[0].data[1], 5, "reader grouped second USD median");
+stats.setUsdEnabled(false);
+
+// Explicit discrete presentation accepts signed integer measurements; only
+// metadata-declared special negative responses are excluded.
+context.META.employment_change = { kind: "discrete", nonnegative: false, missing: [], special: ["-9"], labels: {} };
+const signedRows = [{ employment_change: -5 }, { employment_change: 0 }, { employment_change: 5 }, { employment_change: -9 }];
+const signedPoints = stats.numericValues("employment_change", signedRows);
+const signedSummary = stats.numericStatistics(signedPoints, signedRows.length);
+equal(signedSummary.mean, 0, "signed discrete measurements preserve mean");
+equal(signedSummary.median, 0, "signed discrete measurements preserve median");
+const signedPlan = stats.discreteDistributionPlan(signedPoints, signedSummary, true);
+equal(signedPlan.minimum, -5, "signed discrete distribution retains negative domain");
+equal(signedPlan.bins[0].raw, 1, "signed discrete distribution retains negative observation");
+equal(signedPlan.bins.reduce((sum, bin) => sum + bin.raw, 0), 3, "signed distribution excludes declared special code only");
+
+// Public dashboard hooks reuse the live filter state, synchronize existing
+// filter buttons and preserve a defensive copy of filters in a share view.
+context.DATA.splice(0, context.DATA.length, { city: "A", notes: true }, { city: "B", notes: null });
+const filterChip = { pressed: null, getAttribute: name => name === "data-filter" ? "city" : "A",
+  setAttribute(name, value) { if (name === "aria-pressed") this.pressed = value; } };
+documentStub.querySelectorAll = selector => selector === ".chip[data-filter]" ? [filterChip] : [];
+documentStub.body.dataset = {};
+context.requestAnimationFrame = callback => callback();
+context.setTimeout = () => 1;
+context.clearTimeout = () => {};
+const dashboard = windowStub.SurvEyeDashboard;
+dashboard.setFilter("city", ["A"]);
+equal(dashboard.rows().length, 1, "dashboard filter updates analytical sample");
+equal(filterChip.pressed, "true", "dashboard filter synchronizes existing filter chip");
+const copiedFilters = dashboard.getFilters();
+copiedFilters.city.push("B");
+equal(dashboard.rows().length, 1, "dashboard getFilters cannot mutate internal selection");
+const copiedView = dashboard.viewStateObject();
+equal(copiedView.f.city.join(","), "A", "share view retains selected filter");
+copiedView.f.city.push("B");
+equal(dashboard.rows().length, 1, "share view cannot mutate internal selection");
+dashboard.setFilters({});
+equal(dashboard.rows().length, 2, "dashboard filter clear restores all observations");
+equal(filterChip.pressed, "false", "dashboard clear reconciles filter chip");
+
 console.log("PASS Stata-compatible dashboard statistics");
+
+// 2.3.2: an affirmative binary KPI must not flip with the majority.
+config.weighted=false; stats.setWeightsEnabled(false);
+context.META.binary_review={kind:"yesno",labels:{"1":"Yes","2":"No"},order:["1","2"],affirmative:["1"],negative:["2"]};
+const binaryReviewRows=[{binary_review:"1",_w:1},{binary_review:"2",_w:3},{binary_review:"2",_w:6}];
+equal(stats.highlight("binary_review",binaryReviewRows).value,"33.3%","binary highlight remains affirmative for a minority");
+equal(stats.highlight("binary_review",binaryReviewRows.slice(1)).value,"0%","all-no selection is zero yes, not 100% no");
+equal(stats.highlight("binary_review",[]).value,"n/a","empty binary highlight is unavailable");
+config.weighted=true;stats.setWeightsEnabled(true);
+equal(stats.highlight("binary_review",binaryReviewRows).value,"10%","binary highlight respects weights");
+config.weighted=false;stats.setWeightsEnabled(false);
+console.log("PASS stable affirmative highlights (unweighted, weighted, all-no, empty)");

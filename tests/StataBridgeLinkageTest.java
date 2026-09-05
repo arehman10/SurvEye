@@ -35,6 +35,18 @@ public final class StataBridgeLinkageTest {
             check("bridge".equals(values.get("engine_version")),
                     "Bridge fallback must distinguish itself from the engine version: " + values);
             check(values.size() == 3, "Bridge fallback contains unexpected status fields: " + values);
+            // Inject the failure directly instead of exhausting the test JVM.
+            java.lang.reflect.Method failure = org.worldbank.surveye.StataPlugin.class
+                    .getDeclaredMethod("bridgeFailure", String[].class, Throwable.class);
+            failure.setAccessible(true);
+            int memoryResult = ((Integer) failure.invoke(null,
+                    new String[]{config.toString(), status.toString()},
+                    new OutOfMemoryError("Java heap space"))).intValue();
+            check(memoryResult == 0, "Heap failure did not preserve the fallback status contract.");
+            String memoryStatus = new String(Files.readAllBytes(status), StandardCharsets.UTF_8);
+            check(memoryStatus.contains("set java_heapmax 4g, permanently")
+                            && memoryStatus.contains("restart Stata"),
+                    "Heap failure must include actionable Stata guidance.");
             System.out.println("PASS Stata bridge linkage-failure status contract");
         } finally {
             if (Files.exists(temporary.resolve("status.tsv"))) Files.delete(temporary.resolve("status.tsv"));

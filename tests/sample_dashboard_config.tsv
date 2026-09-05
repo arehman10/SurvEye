@@ -1,6 +1,6 @@
 mode	demo
 demo	1
-questionnaire	../fixtures/English ES_B_READY_2025_Australia(4).html
+questionnaire	tests/fixtures/synthetic-australia.html
 output	examples/sample_dashboard.html
 status	build/sample-dashboard-status.tsv
 title	Australia Enterprise Survey preview

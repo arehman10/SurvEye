@@ -1,0 +1,50 @@
+mode	build
+questionnaire	tests/review_demo_questionnaire.html
+data	tests/review_admin2_data.csv
+output	examples/surveye_admin2_review.html
+status	build/review-admin2-status.tsv
+diagnostics	build/review-admin2-diagnostics.txt
+title	Sri Lanka · synthetic survey preview
+subtitle	240 invented interviews · six questionnaire sections · illustration only
+variables	region sector size female_owner female_manager registered business_age owner_experience sole_proprietor family_owned home_based rented_premises owned_premises has_signage keeps_accounts tax_registered member_association multiple_locations business_locations profile_note sales monthly_sales sales_growth domestic_share exporter online_sales sells_government sells_large_firms customer_count largest_customer_share has_website uses_social_media accepts_digital_payment advertises new_product new_market sales_channels competition_obstacle demand_obstacle sales_note employees employment_change female_employees temporary_employees unpaid_family_workers vacancies hours_per_week monthly_wage provides_training hired_last_year written_contracts social_protection paid_leave safety_training remote_work recruitment_days skills_obstacle labor_rules_obstacle training_topics employment_note bank_account has_loan applied_loan loan_approved collateral_required uses_mobile_money cash_flow_forecast separate_finances has_insurance supplier_credit credit_sales_share loan_amount interest_rate loan_processing_days cash_buffer_days late_payment_days finance_obstacle finance_sources finance_note review_note power_outages outage_hours owns_generator has_internet internet_interruptions water_interruptions delivery_days inventory_days capacity_utilization uses_accounting_software tracks_inventory quality_certificate energy_efficiency recycles_waste backup_records electricity_obstacle transport_obstacle internet_obstacle services_used operations_note tax_obstacle permits_obstacle corruption_obstacle land_obstacle security_obstacle courts_obstacle permit_wait_days management_regulation_share inspection_count plans_hiring plans_investment plans_expansion expects_sales_growth expects_closure digital_investment planned_investment expected_sales_change business_confidence support_needed outlook_note
+filters	region sector size
+highlights	sales employees bank_account female_owner
+continuous	sales_growth employment_change expected_sales_change
+histograms	sales monthly_sales monthly_wage loan_amount planned_investment
+discrete	business_age owner_experience business_locations customer_count employees female_employees temporary_employees unpaid_family_workers vacancies hours_per_week recruitment_days loan_processing_days cash_buffer_days late_payment_days power_outages outage_hours internet_interruptions water_interruptions delivery_days inventory_days permit_wait_days inspection_count
+noautogroups	1
+maxpanels	0
+maxcategories	20
+weight	review_weight
+weighttype	pweight
+usdvars	sales monthly_sales monthly_wage loan_amount planned_investment
+usdrate	300
+currency	LKR
+tableby	region
+tablevars	female_owner sales bank_account employees review_note
+tablestats	share:1|median|share:1|median|auto
+tablelabels	Women among owners|Median annual sales|Has a bank account|Median employees|Review note available
+tabletitle	Business profile by region
+tablesubtitle	Synthetic illustration. The all-region benchmark follows sector and size filters.
+tabletotal	All synthetic interviews
+tableweightlabel	Illustrative weighted total
+compare	bank_account female_owner online_sales provides_training
+compareby	region
+comparelevels	01|1|03|04
+comparetitle	Business practices by region
+latitude	latitude
+longitude	longitude
+country	Sri Lanka
+maptype	points
+mapby	region
+basemap	google_hybrid
+maptitle	Survey coverage · synthetic locations
+theme	worldbank
+density	compact
+keymessages	Illustration only::Every response, weight, and map point is invented. These are not findings about Sri Lanka.|Try the dashboard::Filter a region or sector, open a question, compare groups, and switch weighted estimates or currency.
+source	Public synthetic SurvEye software-review fixture. No actual firms or respondents.
+note	Illustration only. All data are synthetic, including weights and locations. The LKR 300 per USD rate is a fixed demonstration assumption, not a current exchange rate. Negative employment changes are legitimate values.
+replace	1
+
+boundaries	@BOUNDARY_ZIP@
+maplevel	admin2

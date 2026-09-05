@@ -1,5 +1,5 @@
 mode	build
-questionnaire	../fixtures/English Global_informal2026(4).html
+questionnaire	tests/fixtures/synthetic-informal-en.html
 data	tests/composite_visual.csv
 output	build/qa-family.html
 status	build/qa-family-status.tsv

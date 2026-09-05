@@ -18,29 +18,18 @@ public final class StataEntryPointSmokeTest {
         if (args.length != 2) throw new IllegalArgumentException("Expected project root and fixture directory.");
         Path root = Paths.get(args[0]).toAbsolutePath().normalize();
         Path fixtures = Paths.get(args[1]).toAbsolutePath().normalize();
-        Path questionnaire = fixtures.resolve("English ES_B_READY_2025_Australia(4).html");
-        Path data;
-        boolean australiaFixture;
-        String variables;
-        String filters;
-        String expectedN;
-        String expectedCharts;
-        if (Files.isRegularFile(questionnaire)) {
-            australiaFixture = true;
-            data = root.resolve("tests/synthetic_australia.csv");
-            variables = "b1 b4_sp b2a";
-            filters = "region";
-            expectedN = "9";
-            expectedCharts = "4";
-        } else {
-            australiaFixture = false;
-            questionnaire = root.resolve("tests/fixed_multi_questionnaire.html");
-            data = root.resolve("tests/fixed_multi.csv");
-            variables = "services_used";
-            filters = "";
-            expectedN = "4";
-            expectedCharts = "1";
+        Path questionnaire = fixtures.resolve("synthetic-australia.html");
+        if (!Files.isRegularFile(questionnaire)) {
+            questionnaire = fixtures.resolve("English ES_B_READY_2025_Australia(4).html");
         }
+        // Both bundled synthetic and explicit historical fixtures must exercise
+        // the full categorical, numeric, custom-variable, and GPS contracts.
+        Path data = root.resolve("tests/synthetic_australia.csv");
+        boolean australiaFixture = true;
+        String variables = "b1 b4_sp b2a";
+        String filters = "region";
+        String expectedN = "9";
+        String expectedCharts = "4";
         check(Files.isRegularFile(questionnaire), "Questionnaire fixture is missing: " + questionnaire);
         check(Files.isRegularFile(data), "Synthetic CSV is missing: " + data);
 

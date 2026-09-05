@@ -1,7 +1,8 @@
-*! surveye licensed-Stata smoke test 2.1.3 21jul2026
+*! surveye licensed-Stata smoke test (VERSION-driven)
 version 16.0
 clear all
 set more off
+set varabbrev off
 
 args root
 if `"`root'"' == "" local root `"`c(pwd)'"'
@@ -13,11 +14,17 @@ local caller_pwd `"`c(pwd)'"'
 quietly cd `"`macval(root)'"'
 local root `"`c(pwd)'"'
 confirm file `"`root'/surveye.ado"'
-confirm file `"`root'/surveye_2_1_3.jar"'
+tempname version_fh
+file open `version_fh' using `"`root'/VERSION"', read text
+file read `version_fh' review_version
+file close `version_fh'
+local review_version = strtrim(`"`review_version'"')
+local release_jar = "surveye_" + subinstr(`"`review_version'"', ".", "_", .) + ".jar"
+confirm file `"`root'/`release_jar'"'
 adopath ++ `"`root'"'
 discard
 quietly do `"`root'/surveye.ado"'
-findfile surveye_2_1_3.jar
+findfile `release_jar'
 display as text "Testing engine: " as result `"`r(fn)'"'
 
 local questionnaire `"`root'/tests/fixed_multi_questionnaire.html"'
@@ -52,7 +59,7 @@ display as text "[2/19] describe mode"
 surveye describe using `"`questionnaire'"', detail
 assert r(success) == 1
 assert r(k_sections) == 1
-if `"`r(package_version)'"' != "2.1.3" {
+if `"`r(package_version)'"' != `"`review_version'"' {
     display as error "Wrong surveye version loaded: `r(package_version)'"
     exit 9
 }

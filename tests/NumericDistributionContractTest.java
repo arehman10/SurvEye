@@ -35,10 +35,10 @@ public final class NumericDistributionContractTest {
                     "Sparse integer years-in-city distribution was not retained as discrete.");
             check("discrete".equals(built.model.metadata.get("workers").kind),
                     "Short worker-count support was not retained as discrete.");
-            check(built.model.metadata.get("age").nonnegative
-                            && built.model.metadata.get("years_city").nonnegative
-                            && built.model.metadata.get("workers").nonnegative,
-                    "Forced discrete metadata must exclude negative response codes.");
+            check(!built.model.metadata.get("age").nonnegative
+                            && !built.model.metadata.get("years_city").nonnegative
+                            && !built.model.metadata.get("workers").nonnegative,
+                    "Forced discrete presentation must not imply a nonnegative domain restriction.");
             check(built.model.metadata.get("age").specialCodes.contains("-9")
                             && built.model.metadata.get("age").specialCodes.contains("-4"),
                     "Questionnaire numeric special codes were not preserved in metadata.");

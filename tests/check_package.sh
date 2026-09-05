@@ -2,9 +2,10 @@
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+. "$ROOT/scripts/version.sh"
 PKG="$ROOT/surveye.pkg"
 GENERIC_JAR="$ROOT/surveye.jar"
-RELEASE_JAR="$ROOT/surveye_2_2_0.jar"
+RELEASE_JAR="$ROOT/$SURVEYE_RELEASE_JAR"
 
 for required in "$PKG" "$ROOT/stata.toc" "$GENERIC_JAR" "$RELEASE_JAR"; do
   if [ ! -f "$required" ]; then
@@ -13,12 +14,36 @@ for required in "$PKG" "$ROOT/stata.toc" "$GENERIC_JAR" "$RELEASE_JAR"; do
   fi
 done
 
-if ! grep -Fq 'd Version: 2.2.0' "$PKG" ||
-   ! grep -Fq 'F surveye_2_2_0.jar' "$PKG" ||
+if ! grep -Fq "d Version: $SURVEYE_VERSION" "$PKG" ||
+   ! grep -Fq "F $SURVEYE_RELEASE_JAR" "$PKG" ||
    ! grep -Eq '^[fF] surveye[.]ado$' "$PKG" ||
    ! grep -Eq '^[fF] surveye[.]sthlp$' "$PKG" ||
    ! grep -Eq '^[fF] surveye[.]jar$' "$PKG"; then
-  echo "FAIL: package manifest does not identify the v2.2.0 release JAR" >&2
+  echo "FAIL: package manifest does not identify the v$SURVEYE_VERSION release JAR" >&2
+  exit 1
+fi
+
+# Static Stata/help metadata cannot read a repository VERSION after SSC
+# installation. Fail on drift instead of silently packaging mixed releases.
+for file in "$ROOT/surveye.ado" "$ROOT/surveye.sthlp"; do
+  if ! grep -Fq "version $SURVEYE_VERSION " "$file"; then
+    echo "FAIL: stale version header in $(basename "$file")" >&2
+    exit 1
+  fi
+done
+if ! grep -Fq "local jarname \"$SURVEYE_RELEASE_JAR\"" "$ROOT/surveye.ado" ||
+   ! grep -Fq "return local package_version \"$SURVEYE_VERSION\"" "$ROOT/surveye.ado" ||
+   ! grep -Fxq "Implementation-Version: $SURVEYE_VERSION" "$ROOT/MANIFEST.MF"; then
+  echo "FAIL: Stata bridge or source manifest version disagrees with VERSION" >&2
+  exit 1
+fi
+if ! awk -v version="$SURVEYE_VERSION" -v jar="$SURVEYE_RELEASE_JAR" '
+  $1 == "local" && $2 == "jarname" { gsub(/"/, "", $3); if ($3 != jar) exit 1 }
+  $1 == "return" && $2 == "local" && $3 == "package_version" {
+    gsub(/"/, "", $4); if ($4 != version) exit 1
+  }
+' "$ROOT/surveye.ado"; then
+  echo "FAIL: mixed release references in surveye.ado" >&2
   exit 1
 fi
 
@@ -61,7 +86,7 @@ if ! printf '%s\n' "$manifest" | grep -Fq 'Main-Class: SurvEye'; then
   exit 1
 fi
 if ! printf '%s\n' "$manifest" | grep -Fq 'Implementation-Title: SurvEye' ||
-   ! printf '%s\n' "$manifest" | grep -Fq 'Implementation-Version: 2.2.0'; then
+   ! printf '%s\n' "$manifest" | grep -Fq "Implementation-Version: $SURVEYE_VERSION"; then
   echo "FAIL: executable JAR manifest has stale product/version metadata" >&2
   exit 1
 fi
@@ -81,6 +106,8 @@ fi
 for resource in \
   resources/dashboard.js \
   resources/dashboard.css \
+  resources/configurator.js \
+  resources/configurator.css \
   resources/chart.umd.js \
   resources/CHARTJS-LICENSE.md \
   resources/leaflet.js \
@@ -105,6 +132,8 @@ trap 'rm -rf "$RESOURCE_BUILD"' EXIT HUP INT TERM
 for source in \
   dashboard.js \
   dashboard.css \
+  configurator.js \
+  configurator.css \
   chart.umd.js \
   CHARTJS-LICENSE.md \
   leaflet.js \
@@ -116,9 +145,25 @@ for source in \
   noto-sans-arabic-arabic-700-normal.woff2 \
   NOTO-SANS-ARABIC-LICENSE.txt; do
   unzip -p "$GENERIC_JAR" "resources/$source" > "$RESOURCE_BUILD/$source"
-  if ! cmp -s "$ROOT/src/resources/$source" "$RESOURCE_BUILD/$source"; then
-    echo "FAIL: JAR resource is stale: resources/$source" >&2
-    exit 1
+  if [ -f "$ROOT/src/resources/$source" ]; then
+    if ! cmp -s "$ROOT/src/resources/$source" "$RESOURCE_BUILD/$source"; then
+      echo "FAIL: JAR resource is stale: resources/$source" >&2
+      exit 1
+    fi
+  else
+    # Source-only review bundles keep these licensed assets embedded in the JAR.
+    # Verify exact original bytes against a maintained checksum, not mere presence.
+    case "$source" in
+      noto-sans-arabic-arabic-400-normal.woff2|noto-sans-arabic-arabic-700-normal.woff2)
+        expected=$(awk -v name="$source" '$2 == name { print $1 }' "$ROOT/src/resources/embedded-assets.sha256")
+        actual=$(sha256sum "$RESOURCE_BUILD/$source" | awk '{ print $1 }')
+        if [ -z "$expected" ] || [ "$actual" != "$expected" ]; then
+          echo "FAIL: embedded asset checksum differs: $source" >&2
+          exit 1
+        fi
+        ;;
+      *) echo "FAIL: missing maintained source asset: $source" >&2; exit 1 ;;
+    esac
   fi
 done
 

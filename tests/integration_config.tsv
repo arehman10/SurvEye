@@ -1,5 +1,5 @@
 mode	build
-questionnaire	../upload/English ES_B_READY_2025_Australia(4).html
+questionnaire	tests/fixtures/synthetic-australia.html
 data	tests/synthetic_australia.csv
 output	build/config_integration.html
 status	build/config_status.tsv
@@ -11,8 +11,7 @@ keymessages	Coverage::Nine QA interviews|GPS::Eight valid locations
 latitude	lat
 longitude	lon
 country	Australia
-boundaries	../upload/World Bank Official Boundaries - Admin 2(3).zip
-maplevel	admin2
+maplevel	country
 maptype	cluster
 mapby	region
 weight	w

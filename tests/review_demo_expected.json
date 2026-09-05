@@ -1,0 +1,52 @@
+{
+  "synthetic": true,
+  "seed": 23010904,
+  "rows": 240,
+  "questions": 120,
+  "sections": 6,
+  "usd_rate_lkr_per_usd": 300,
+  "employment_change": {
+    "n": 240,
+    "mean": 0,
+    "min": -5,
+    "max": 5
+  },
+  "notes_completion_unweighted_percent": 33.333333333333336,
+  "forbidden_raw_note_prefixes_in_html": [
+    "SYNTHETIC_PRIVATE_NOTE_",
+    "SYNTHETIC_FILTER_NOTE_",
+    "SYNTHETIC_TABLE_NOTE_"
+  ],
+  "region_counts": {
+    "01": 60,
+    "1": 60,
+    "03": 60,
+    "04": 60
+  },
+  "unweighted_highlights": {
+    "sales": {
+      "valid_n": 229,
+      "missing_n": 11,
+      "mean": 5228196.506550218,
+      "median": 2757000.0
+    },
+    "employees": {
+      "valid_n": 230,
+      "missing_n": 10,
+      "mean": 22.473913043478262,
+      "median": 12.0
+    },
+    "bank_account": {
+      "valid_n": 229,
+      "missing_n": 11,
+      "mean": 0.5982532751091703,
+      "median": 1.0
+    },
+    "female_owner": {
+      "valid_n": 230,
+      "missing_n": 10,
+      "mean": 0.45652173913043476,
+      "median": 0.0
+    }
+  }
+}

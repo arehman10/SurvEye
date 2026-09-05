@@ -2,6 +2,7 @@
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+. "$ROOT/scripts/version.sh"
 ADO="$ROOT/surveye.ado"
 SMOKE="$ROOT/tests/stata_smoke.do"
 README="$ROOT/README.md"
@@ -98,7 +99,7 @@ if ! grep -Eq '^[[:space:]]*capture[[:space:]]+noisily[[:space:]]+javacall[[:spa
   exit 1
 fi
 
-if ! grep -Fq 'local jarname "surveye_2_2_0.jar"' "$ADO" ||
+if ! grep -Fq "local jarname \"$SURVEYE_RELEASE_JAR\"" "$ADO" ||
    ! grep -Fq 'jars(`jarname'"'"')' "$ADO"; then
   echo "FAIL: javacall must use the release-specific ado-path JAR" >&2
   exit 1
@@ -126,7 +127,7 @@ if [ "$(grep -Fc 'BACKGround(string) TYPOGraphy(string) CORNers(string)' "$ADO" 
   exit 1
 fi
 if ! grep -Fq 'org.worldbank.surveye.AppearancePlugin apply' "$ADO" ||
-   [ ! -f "$ROOT/src/AppearancePlugin.java" ] || [ ! -x "$ROOT/tests/test_appearance.sh" ]; then
+   [ ! -f "$ROOT/src/AppearancePlugin.java" ] || [ ! -f "$ROOT/tests/test_appearance.sh" ]; then
   echo "FAIL: appearance bridge source or portable test is incomplete" >&2
   exit 1
 fi
@@ -358,7 +359,7 @@ fi
 # characters (8-byte chunks vanish at 256-byte boundaries), and SMCL
 # directives may not span physical lines.  Both were shipped bugs once;
 # keep them impossible.
-HELP="${HELP:-surveye.sthlp}"
+HELP="${HELP:-$ROOT/surveye.sthlp}"
 overlong=$(awk 'length($0) > 244 { n++ } END { print n+0 }' "$HELP")
 if [ "$overlong" -ne 0 ]; then
   echo "FAIL: $overlong help-file lines exceed 244 characters; Stata's viewer corrupts them" >&2
