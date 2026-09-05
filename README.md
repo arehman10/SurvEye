@@ -1,15 +1,10 @@
 # SurvEye: interactive Survey Solutions and SurveyCTO dashboards for Stata
 
-> **2.3.2 local review candidate — not published.** Test this extracted copy with
-> `net install surveye, from("C:/path/to/SurvEye-review") replace`, then restart
-> Stata. GitHub/SSC installation commands below refer to the published package,
-> which does not contain this candidate. See `CHANGELOG.md` for the fixes and
-> `VERSION` for the authoritative candidate version. Current test results and
-> limitations are recorded in [REVIEW_NOTES.md](REVIEW_NOTES.md).
+> **2.3.2 local review candidate — not published.**
 
 
 **Author:** Attique Ur Rehman, Enterprise Analysis Unit, World Bank  
-**Development assistance:** Developed with help of GPT-5.6 Sol Ultra.
+**Development assistance:** Modified and bug fixes with help of GPT-6 Astra Ultra.
 
 [Repository](https://github.com/arehman10/SurvEye) ·
 [Report a problem](https://github.com/arehman10/SurvEye/issues) ·
