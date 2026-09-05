@@ -12,27 +12,7 @@
 [Examples](example.do) ·
 [Changelog](CHANGELOG.md)
 
-The [2.3.2 Admin-2 review dashboard](examples/surveye_admin2_review.html) uses
-240 synthetic interviews and the supplied World Bank archive's 25 Sri Lankan
-district features. The original single-page layout and chart grids are preserved,
-with more readable chips, balanced overview cards, mobile overflow fixes, and
-interactive district names. Binary highlights now consistently report the
-affirmative share; map diagnostics follow filters. The supplied Mac ZIP and its
-UTF-8-SIG encoding declaration are supported. See [REVIEW_NOTES.md](REVIEW_NOTES.md)
-for installation and [QA_REPORT.md](QA_REPORT.md) for executed tests and limits.
 
-The fixes cover privacy reduction, signed values, completion denominators,
-exact string category codes, numeric summaries, comparison levels, CSV input
-and export, and source/build recovery. Existing command options still apply.
-See [REVIEW_NOTES.md](REVIEW_NOTES.md) for the fixes and validation limits.
-The screenshots below illustrate earlier releases; regenerate existing HTML
-with the review engine to apply its bug fixes.
-
-## Supported questionnaires
-
-The `using` file may be any of three questionnaire artifacts. Detection reads
-the file's content, never its extension, so a form definition saved as
-`.html` still parses.
 
 | Input | How to obtain it | What SurvEye reads |
 |---|---|---|
