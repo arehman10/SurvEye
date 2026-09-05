@@ -114,7 +114,7 @@ final class DashboardRenderer {
                 .append("<a href=\"#overview\" class=\"active\">").append(Util.html(t(model, "overview"))).append("</a>");
         for (int i = 0; i < model.sections.size(); i++) {
             DashboardSection section = model.sections.get(i);
-            out.append("<a href=\"#").append(Util.slug(section.title, i + 1)).append("\">")
+            out.append("<a title=\"").append(Util.html(section.title)).append("\" href=\"#").append(Util.slug(section.title, i + 1)).append("\">")
                     .append(Util.html(Util.shortLabel(section.title, t(model, "section") + " " + (i + 1), 29))).append("</a>");
         }
         out.append("<span class=\"nav-actions\"><button type=\"button\" id=\"expand-all\">")
@@ -173,7 +173,7 @@ final class DashboardRenderer {
             out.append("</span></div>");
         }
         out.append("</div>");
-        out.append("</div></div></div></section>\n");
+        out.append("</div></div></section>\n");
         return out.toString();
     }
 
@@ -255,6 +255,14 @@ final class DashboardRenderer {
                 .append("<span class=\"map-action\"><span class=\"map-show\">").append(Util.html(t(model, "showMap")))
                 .append("</span><span class=\"map-hide\">").append(Util.html(t(model, "hideMap")))
                 .append("</span><span class=\"map-chevron\" aria-hidden=\"true\">⌄</span></span></summary><div class=\"map-body\">")
+                .append("<div class=\"map-tools\"><span class=\"map-boundary-count\">")
+                .append(geometry.featureCount).append(' ').append(Util.html(t(model, "boundaryFeatures")))
+                .append("</span><button type=\"button\" class=\"ghost-btn\" id=\"map-fit-points\">")
+                .append(Util.html(t(model, "fitInterviews"))).append("</button>")
+                .append("<button type=\"button\" class=\"ghost-btn\" id=\"map-fit-country\">")
+                .append(Util.html(t(model, "countryExtent"))).append("</button></div>")
+                .append("<div class=\"map-tile-status\" id=\"map-tile-status\" role=\"status\" hidden>")
+                .append(Util.html(t(model, "mapTilesUnavailable"))).append("</div>")
                 .append("<div class=\"map-stage\" id=\"map-stage\"><div id=\"leaflet-map\" class=\"leaflet-map\" role=\"application\" aria-label=\"")
                 .append(Util.html(t(model, "interactiveMapOf"))).append(' ').append(Util.html(geometry.displayName)).append("\"></div>")
                 .append("<div class=\"map-loading\" id=\"map-loading\">").append(Util.html(t(model, "preparingMap"))).append("</div></div>");
@@ -262,8 +270,9 @@ final class DashboardRenderer {
             out.append("<div class=\"map-legend\" id=\"map-legend\" aria-label=\"")
                     .append(Util.html(t(model, "mapGroups"))).append("\"></div>");
         }
-        out.append("<div class=\"map-foot\"><span>").append(model.mapMissing).append(' ')
-                .append(Util.html(t(model, "missingInvalid"))).append(" · ").append(model.mapOutside).append(' ')
+        out.append("<div class=\"map-foot\"><span id=\"map-diagnostics\" aria-live=\"polite\"><b id=\"map-missing\">")
+                .append(model.mapMissing).append("</b> ").append(Util.html(t(model, "missingInvalid")))
+                .append(" · <b id=\"map-outside\">").append(model.mapOutside).append("</b> ")
                 .append(Util.html(t(model, "outsideBoundary"))).append("</span><span>")
                 .append(Util.html(t(model, "boundary"))).append(": ").append(Util.html(geometry.sourceLabel))
                 .append(" · ").append(Util.html(t(model, "coincidentPoints"))).append("</span></div></div></details>\n");
@@ -316,7 +325,10 @@ final class DashboardRenderer {
                 .append(Util.html(panel.fullLabel)).append("\">").append(Util.html(panel.title)).append("</h3><span class=\"varbadge\" title=\"")
                 .append(Util.html(composite ? t(model, "variableName") + "s" : t(model, "variableName"))).append("\">")
                 .append(Util.html(composite ? Integer.toString(panel.memberVariables().size()) + " variables" : panel.variable))
-                .append("</span><button type=\"button\" class=\"panel-export\" data-export-chart title=\"")
+                .append("</span><button type=\"button\" class=\"panel-customize\" title=\"")
+                .append(Util.html(t(model, "customizeChart"))).append("\" aria-label=\"")
+                .append(Util.html(t(model, "customizeChart"))).append("\">\u2699</button>")
+                .append("<button type=\"button\" class=\"panel-export\" data-export-chart title=\"")
                 .append(Util.html(t(model, "downloadChart"))).append("\" aria-label=\"")
                 .append(Util.html(t(model, "downloadChart"))).append("\">\u2913</button></div>");
         if (composite) {
@@ -362,7 +374,7 @@ final class DashboardRenderer {
         if (!blank(model.note)) out.append("<br><b>").append(Util.html(t(model, "note"))).append(":</b> ").append(Util.html(model.note));
         if (!blank(model.source)) out.append("<br><b>").append(Util.html(t(model, "source"))).append(":</b> ").append(Util.html(model.source));
         out.append("</div><div class=\"footer-right\">").append(Util.html(t(model, "generated"))).append(' ')
-                .append(Util.html(Util.utcTimestamp())).append("<br>SurvEye 2.2.0 · ")
+                .append(Util.html(Util.utcTimestamp())).append("<br>SurvEye ").append(SurvEye.VERSION).append(" · ")
                 .append(Util.html(model.mapGeometry == null ? t(model, "offlineHtml") : t(model, "onlineMapHtml")))
                 .append(model.simulated ? "<br><b>" + Util.html(t(model, "simulatedWarning")) + "</b>" : "")
                 .append("</div></footer>\n");
@@ -380,6 +392,7 @@ final class DashboardRenderer {
             Map<String, Object> value = new LinkedHashMap<String, Object>();
             value.put("label", meta.label); value.put("kind", meta.kind); value.put("filterMode", meta.filterMode);
             value.put("distributionMode", meta.distributionMode); value.put("nonnegative", meta.nonnegative);
+            value.put("canonicalCodes", meta.canonicalCodes);
             value.put("format", meta.stataFormat); value.put("order", meta.order);
             value.put("labels", meta.labels); value.put("special", new ArrayList<String>(meta.specialCodes));
             value.put("missing", new ArrayList<String>(meta.missingCodes)); value.put("multi", meta.multi);
@@ -454,6 +467,9 @@ final class DashboardRenderer {
             map.put("lonCenter", model.mapGeometry.lonCenter);
             map.put("boundaryAdmin2", model.mapGeometry.admin2);
             map.put("boundary", model.mapGeometry.encodedFeatures);
+            map.put("boundaryLabels", model.mapGeometry.featureLabels);
+            map.put("boundaryFeatureCount", model.mapGeometry.featureCount);
+            map.put("outsideRows", model.mapOutsideRows);
             map.put("by", model.mapBy);
             if (!blank(model.mapBy) && model.metadata.containsKey(model.mapBy)) {
                 VariableMeta by = model.metadata.get(model.mapBy);
@@ -474,7 +490,7 @@ final class DashboardRenderer {
         return variables.size();
     }
 
-    private static String safeScript(String value) {
+    static String safeScript(String value) {
         return value.replace("</script", "<\\/script").replace("</SCRIPT", "<\\/SCRIPT");
     }
 

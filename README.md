@@ -1,5 +1,13 @@
 # SurvEye: interactive Survey Solutions and SurveyCTO dashboards for Stata
 
+> **2.3.2 local review candidate — not published.** Test this extracted copy with
+> `net install surveye, from("C:/path/to/SurvEye-review") replace`, then restart
+> Stata. GitHub/SSC installation commands below refer to the published package,
+> which does not contain this candidate. See `CHANGELOG.md` for the fixes and
+> `VERSION` for the authoritative candidate version. Current test results and
+> limitations are recorded in [REVIEW_NOTES.md](REVIEW_NOTES.md).
+
+
 **Author:** Attique Ur Rehman, Enterprise Analysis Unit, World Bank  
 **Development assistance:** Developed with help of GPT-5.6 Sol Ultra.
 
@@ -9,38 +17,21 @@
 [Examples](example.do) ·
 [Changelog](CHANGELOG.md)
 
-![Production fieldwork dashboard Example — forest theme, emphasized title, task-team byline, 26,932 live-filtered interviews](docs/screenshots/informal-hero.png)
+The [2.3.2 Admin-2 review dashboard](examples/surveye_admin2_review.html) uses
+240 synthetic interviews and the supplied World Bank archive's 25 Sri Lankan
+district features. The original single-page layout and chart grids are preserved,
+with more readable chips, balanced overview cards, mobile overflow fixes, and
+interactive district names. Binary highlights now consistently report the
+affirmative share; map diagnostics follow filters. The supplied Mac ZIP and its
+UTF-8-SIG encoding declaration are supported. See [REVIEW_NOTES.md](REVIEW_NOTES.md)
+for installation and [QA_REPORT.md](QA_REPORT.md) for executed tests and limits.
 
-<table>
-  <tr>
-    <td width="50%"><img src="docs/screenshots/australia-demo.png" alt="surveye demo on the full B-READY 2025 Australia instrument: 399 questions, 8 sections, simulated data"><br><sub><code>surveye demo</code> on the full B-READY 2025 Australia instrument — 399 questions, clearly marked simulated data, no dataset required</sub></td>
-    <td width="50%"><img src="docs/screenshots/australia-sales.png" alt="A sales-and-supplies section of the simulated Australia preview: histograms with mean plus three SD guides, single-select bars, yes/no verification cards"><br><sub>A section of the same preview — histograms with Mean + 3 SD guides, category bars, and yes/no verification cards</sub></td>
-  </tr>
-  <tr>
-    <td colspan="2"><img src="docs/screenshots/informal-charts.png" alt="Informal-sector modules with a workforce histogram, a profit/loss donut, and custom indicators inferred from data"><br><sub>Questionnaire modules beside custom indicators (<code>customvars</code> and data-inferred cards) — the values shown here are simulated for publication</sub></td>
-    <tr>
-
-</table>
-
-<sub>The Australia previews use <code>surveye demo</code>'s clearly marked simulated data; the informal-sector hero shows a live fieldwork dashboard, and the chart values in the module screenshot are simulated so no preliminary results circulate.</sub>
-
-SurvEye is a Stata 16+ tool, distributed as the command `surveye`, that turns a survey questionnaire—a Survey Solutions questionnaire preview (HTML), a SurveyCTO form definition (XML), or a SurveyCTO printable form (HTML)—and the corresponding Stata data into a polished, interactive HTML dashboard. Questionnaire text supplies the labels, sections, response order, and categories; the command adds compact charts, smart related-variable families, explicit subgroup comparisons, filters, messages, custom data variables, native Stata weights, optional confidence intervals, live-filtered numeric summaries, optional profile tables, local-currency/USD switching, a localized right-to-left interface, and an optional Leaflet country map.
-
-The command has deliberately useful defaults:
-
-- the questionnaire determines the initial organization and chart types;
-- the default `editorial` finish uses the warm paper, subtle background glow, serif hierarchy, and softened cards of the generic fieldwork dashboard while remaining survey-agnostic;
-- compatible suffix families such as `srib8a srib8b srib8c` are combined automatically, with manual grouping and opt-out controls available;
-- `density(compact)` keeps large instruments readable without excessive scrolling;
-- categorical cards are kept uncluttered by default; add `ci` when intervals are useful on eligible bars;
-- numeric cards combine a complete distribution, a conditional mean-plus-three-standard-deviations guide, and a detailed **Stats** tab that updates with every filter;
-- supplying a Stata weight automatically adds a **Weighted estimates** switch, initially on, so readers can compare weighted and unweighted results without rebuilding the file;
-- declared monetary variables can switch between their local currency and USD using one fixed, documented conversion rate;
-- an optional profile table places selected indicators side by side by a grouping variable and follows the same filters, weight switch, and currency switch as the charts;
-- `uilanguage(auto)` translates the interface and selects right-to-left layout for Arabic and Urdu questionnaires;
-- GPS maps use individual points over Google Hybrid by default—nearby observations are not collapsed unless requested;
-- the dataset in memory is preserved while a temporary UTF-8 raw-code CSV is passed to the bundled Java engine through Stata's `javacall` interface; and
-- since 2.2.0, every dashboard ships built-in reader tools: a light/dark theme switch, shareable **Copy view link** URLs that reopen the exact filtered view, **Download data (CSV)** for the currently filtered interviews (labelled categories, weight column, Excel-safe UTF-8), per-chart PNG download, expand/collapse-all section controls, a back-to-top button with a reading-progress bar, and `/` / `Esc` keyboard shortcuts for search—all localized in English, Arabic, and Urdu, all excluded from print output, and none requiring a new Stata option or network access. The 2.2.0 release also refreshes the visual identity: an embedded Public Sans variable typeface with true tabular numerals, a navy hero cover with a sampling-grid motif and cyan-to-gold spectrum rule, the warm archival paper of the house style under navy-keyed ink, and a richer dark theme—with chart data colors and all calculations unchanged. Dashboards can now be signed with `byline("Label|Name|Role|Email")`, titles and subtitles support `*emphasis*` pairs, and profile-table share cells carry table-lens micro-bars under a filled-navy header.
+The fixes cover privacy reduction, signed values, completion denominators,
+exact string category codes, numeric summaries, comparison levels, CSV input
+and export, and source/build recovery. Existing command options still apply.
+See [REVIEW_NOTES.md](REVIEW_NOTES.md) for the fixes and validation limits.
+The screenshots below illustrate earlier releases; regenerate existing HTML
+with the review engine to apply its bug fixes.
 
 ## Supported questionnaires
 
@@ -83,11 +74,11 @@ Verify the wrapper, release-specific engine, and help file:
 
 ```stata
 which surveye
-findfile surveye_2_2_0.jar
+findfile surveye_2_3_1.jar
 help surveye
 ```
 
-The package marks its JARs with uppercase `F` records so `net install` places both files on the ado-path. Stata uses `surveye_2_2_0.jar`; the byte-identical `surveye.jar` remains available for command-line and development use. After replacing an earlier copy, type `discard` or restart Stata.
+The package marks its JARs with uppercase `F` records so `net install` places both files on the ado-path. Stata uses `surveye_2_3_1.jar`; the byte-identical `surveye.jar` remains available for command-line and development use. After replacing an earlier copy, type `discard` or restart Stata.
 
 ### Requirements
 
@@ -109,7 +100,7 @@ plain text in a browser:
 - <https://raw.githubusercontent.com/arehman10/SurvEye/main/surveye.pkg>
 
 Then retry the copy-ready command above. The package files must be at the
-repository root, not inside a ZIP file or an enclosing `surveye-2.2.0` folder.
+repository root, not inside a ZIP file or an enclosing `surveye-2.3.1` folder.
 If an earlier SurvEye JAR was already used in the current Stata session, fully
 restart Stata after reinstalling; the JVM can retain a loaded JAR until Stata
 exits. Regenerate previously created dashboards to receive the new interface.
@@ -567,7 +558,7 @@ A map-enabled HTML file embeds valid latitude and longitude so Leaflet can draw 
 
 One invocation represents one rectangular unit of observation. Survey Solutions roster exports and SurveyCTO repeat groups live outside the main rectangular file (separate files, or wide/long companion columns); create one dashboard per level, or merge a carefully defined summary into the parent data first. Blind joins can change denominators. Repeat-group fields read from a SurveyCTO questionnaire chart only where a matching main-file column exists.
 
-The HTML embeds the selected analysis-level values needed by filters and figures. Text, picture, audio, linked text-list, and questionnaire-GPS completion items are reduced to answered/not-answered flags instead of embedding their original contents. Raw response codes are sent to the engine so questionnaire categories remain authoritative; `customvars()` is the exception where Stata variable labels and, when applicable, observed value labels are intentionally used. Questionnaire-defined special responses remain visible and muted in categorical figures. Negative special codes are automatically excluded from numeric histograms, statistics, and numeric filters because they are not measurements; nonnegative substantive shortcuts remain valid. This removes Survey Solutions responses such as `-4` and `-9` without discarding legitimate negative-valued questions. Use `missingcodes()` for additional sentinels not declared by the questionnaire, for example `missingcodes(-999 -998 999)`.
+The HTML embeds the selected analysis-level values needed by filters and figures. Text, picture, audio, linked text-list, and questionnaire-GPS completion items are reduced to answered/not-answered flags instead of embedding their original contents, including when they appear only in a filter or profile table. Completion percentages use the entire applicable sample as the denominator; table groups named by `tableby()` preserve the existing all-groups benchmark behavior. Raw response codes are sent to the engine so questionnaire categories remain authoritative; `customvars()` is the exception where Stata variable labels and, when applicable, observed value labels are intentionally used. Questionnaire-defined special responses remain visible and muted in categorical figures. Negative special codes are automatically excluded from numeric histograms, statistics, and numeric filters because they are not measurements; nonnegative substantive shortcuts remain valid. This removes Survey Solutions responses such as `-4` and `-9` without discarding legitimate negative-valued questions. Use `missingcodes()` for additional sentinels not declared by the questionnaire, for example `missingcodes(-999 -998 999)`.
 
 The command does not upload data. Nevertheless, the finished file is an interactive data product, not a static image, and should be stored and shared under the same controls as its inputs.
 
@@ -581,18 +572,28 @@ return list
 
 ## Development and release checks
 
-The portable tests require a JDK and, for the complete parser regression, the directory containing the supplied questionnaire HTML files:
+The portable suite requires a JDK, Node.js, and standard shell archive tools.
+All default fixtures are public synthetic questionnaires included in the checkout:
 
 ```bash
-./build.sh
-./tests/check_stata_source.sh
-./tests/check_package.sh
-node tests/test_statistics.js
-./tests/run_engine_smoke.sh tests
-./tests/run_surveycto_tests.sh
-./tests/run_parser_tests.sh /path/to/questionnaire-html-files
-./tests/run_engine_smoke.sh /path/to/questionnaire-html-files
-./release.sh /path/to/release-directory
+bash ./build.sh
+sh ./tests/run_all.sh
+bash ./release.sh /path/to/local-review-archives
+```
+
+`VERSION` drives build/archive names and test expectations. Stata's installed
+files retain a literal version and JAR name; package checks reject any mismatch.
+`release.sh` creates local archives only: it does not upload, tag, commit, or push.
+The source archives exclude Git history, older ZIPs, dependency/cache folders,
+and local test output. Maintained fixtures and example HTML files are included.
+
+The public parser tests preserve leading-zero codes, special codes, roster and
+group boundaries, Sinhala joiners, and critical-label cleaning. To exercise the
+original unpublished instruments, provide them explicitly:
+
+```bash
+sh ./tests/run_parser_tests.sh /path/to/private-questionnaires tests/private_parser_expected.tsv
+sh ./tests/run_engine_smoke.sh /path/to/private-questionnaires
 ```
 
 A licensed Stata smoke test remains required before SSC submission:
@@ -600,6 +601,25 @@ A licensed Stata smoke test remains required before SSC submission:
 ```stata
 do "tests/stata_smoke.do" "C:/path/to/surveye"
 ```
+
+Optional DOM interaction checks use the pinned `jsdom` dependency from
+`tests/package.json`. Generate the current review example before running them:
+
+```bash
+python3 tests/review_demo_generate.py
+mkdir -p build
+java -jar surveye.jar --config tests/review_demo_config.tsv
+npm --prefix tests install
+npm --prefix tests run test:dashboard
+```
+
+This test is separate from `run_all.sh`: it requires installed npm dependencies
+and the generated review example. An explicitly requested DOM test fails if
+either is missing. It checks the original page structure, filters and exact
+category codes, search, numeric Stats, weights, currency conversion, share links,
+CSV export, and print state restoration using DOM simulation; charts and maps
+are stubbed. It does not validate rendered pixels,
+responsive geometry, printed page appearance, or real-browser accessibility.
 
 Responsive browser QA uses Node.js 18+ and the pinned dependencies in `tests/package.json`:
 
@@ -613,9 +633,10 @@ For a map-enabled dashboard, the harness should allow or deliberately stub the d
 
 ## Files
 
+- `VERSION` — authoritative review/build version
 - `surveye.ado` — Stata command and Java bridge
 - `surveye.sthlp` — complete Stata help
-- `surveye_2_2_0.jar` — release-specific JAR used by Stata
+- `surveye_2_3_1.jar` — release-specific JAR used by Stata
 - `surveye.jar` — byte-identical conventional JAR
 - `surveye.pkg` and `stata.toc` — Stata package metadata
 - `example.do` — runnable starter and recipes

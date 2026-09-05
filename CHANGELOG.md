@@ -7,6 +7,137 @@ semantic versioning.
 
 ## [Unreleased]
 
+## [2.3.2] — local review candidate, 2026-09-05
+
+Unpublished review build based on the supplied 2.3.1 revision 5 archive.
+
+### Fixed
+- Ignore macOS resource-fork entries when selecting shapefile ZIP components;
+  normalize UTF-8-SIG and common UTF-8 CPG aliases.
+- Keep boundary feature labels aligned with original DBF rows across deleted
+  records/null shapes and preserve them through simplification.
+- Binary highlights consistently use the affirmative category, not the mode.
+- Filter-aware missing/outside map counters; empty sample resets to country extent.
+- Remove surplus closing control markup and fix page overflow on narrow screens.
+
+### Changed
+- Preserve the original report structure and chart grids while improving text
+  contrast, chips, card balance, numeric headers, and responsive spacing.
+- Named district polygon hover, Fit interviews/Country extent controls, tile-failure
+  notice, and bounding-box short-circuits for point-in-boundary checks.
+- Add a real-archive synthetic preview, portable regeneration helper, boundary
+  archive tests, and real-Chromium interaction/layout QA scripts.
+- Rebuilds can reuse embedded runtime assets from the supplied JAR.
+
+### Verification
+- Portable gate passed; 77 boundary assertions; eight real-archive countries;
+  73 real-Chromium assertions; 21 theme/RTL layout checks. Actual Stata,
+  Windows network drives, live tile availability and other browsers remain
+  unverified. Details and raw evidence: QA_REPORT.md.
+
+## [2.3.1] — local review candidate, 2026-09-04
+
+This candidate is prepared for local review and has not been pushed or published.
+Licensed Stata and browser verification must be recorded separately from the
+portable Java/Node checks; these notes do not claim either gate has passed.
+
+### Local review revision 5 — 2026-09-05
+- Withdraw the layout proposals from revisions 2–4 and restore the original
+  shipped single-page report: header, compact controls, highlights, profile
+  table, map, section navigation, and chart grids. The original stylesheet is
+  preserved byte for byte; workspace scripts, styles, and navigation are removed.
+- Retain all audit fixes and source recovery. Existing chart customization,
+  numeric tabs, themes, and export controls were part of the shipped package
+  and remain available in their original locations.
+- Preserve section and map open/closed states after printing without changing
+  the original print layout.
+- Prevent questionnaire-defined codes such as `01` and `1` from merging during
+  numeric normalization; preserve unambiguous padded-code aliases. A Java
+  regression fails before the fix and passes after it.
+- Replace redesign-specific tests with original-interface regression checks.
+
+### Local review revision 4 — 2026-09-05
+- Restore the graph-filled sheet as **Graphs**, the first primary tab and default
+  opening view. Retain original chart grids and start all sections expanded;
+  section jump and Expand all/Collapse all controls remain available.
+- Keep explicit saved-view links, readable full filter wording, shared analytical
+  state, question details, comparison tools, and all audit fixes.
+- Add regression coverage for the restored primary/default view, original chart
+  placement after visiting a question, filtered chart totals, section controls,
+  and explicit saved Overview links. Browser rendering and licensed Stata
+  execution remain unverified.
+
+### Local review revision 3 — 2026-09-05
+- Reorganize the whole report around four primary views: Overview, Questions,
+  Compare, and Map. Replace the stacked masthead with a compact survey header
+  and global scope bar. Move Report, Methodology, export, theme, and print actions
+  into the secondary **Report & export** menu.
+- Show all configured Overview indicators as compact result rows with full
+  labels. Add local Indicators, Profile, and Sample & coverage tabs instead of
+  first-three/Show all cards and vertically stacked secondary sections.
+- Give Questions a full-width catalogue and a full-width reader with Back,
+  Previous, Next, and Compare this question controls. Keep search, section, and
+  sort local to the catalogue and preserve the return position. Categorical
+  questions switch between Chart and Response table views.
+- Keep complete filter wording, wrapping response choices, accessible group
+  labels, and exact string-code selection. Bound the filter editor's height and
+  start the comparison group chooser closed with selected groups in its summary.
+  Disclose an active grouping filter and offer explicit removal.
+- Label categorical response counts as raw **Interview n**, separate from
+  **Weighted share** when weighting is active; disclose the weighted denominator.
+- Add separate current-question/current-comparison and full-filtered-report print
+  actions. Include printed sample, filter, weight, and currency scope. Full-report
+  printing restores all configured charts and Overview views and includes the
+  current comparison after Compare has been used. Catalogue search no longer
+  hides complete-report charts. Restore the interactive view after printing.
+- Revision 3 passed the complete portable gate and the review-fixture and
+  readability-fixture DOM suites. Both examples regenerated with 240 rows,
+  120 questions, and 117 chart panels. Real-browser rendering remains unavailable
+  and unverified because cloud-browser policy blocked the preview; DOM checks
+  use chart/map stubs and do not establish visual rendering. Licensed Stata
+  execution remains unverified.
+
+### Local review revision 2 — 2026-09-05
+- Retain complete filter questions, response choices, and highlight labels instead
+  of truncating them during HTML generation. Keep filter values and calculations
+  unchanged, including distinct string codes such as `01` and `1`.
+- Organize filters into separately labelled groups with wrapping response buttons
+  and clearer selected states. Restore spacing around highlight content and use
+  a balanced card layout, removing the green strip that overlapped text.
+- Reduce the initial Overview to the first three configured highlights, with
+  Show all for the rest. Keep the interview count once in the control bar and
+  start sample composition, response coverage, and the profile table collapsed.
+  This intermediate layout is superseded by revision 3's result rows and local
+  Overview tabs.
+- Add a generated-HTML regression fixture for long visible wording, accessible
+  filter-group labels, and the existing exact-code toggle-button contract.
+  Browser rendering remains unverified; the original cloud preview was blocked.
+
+### Fixed
+- Apply privacy-safe completion reduction consistently to text and media fields
+  used only in filters or profile tables, as well as charted fields.
+- Retain legitimate signed measurements and separate numeric inclusion rules
+  from chart presentation. Discrete numeric highlights retain numeric units.
+- Use the applicable sample denominator for completion percentages.
+- Preserve distinct string group codes such as `01` and `1`, and allow explicit
+  comparison groups beyond the initial category-discovery window.
+- Preserve SurveyCTO question wording, underscore-prefixed user columns in CSV
+  exports, and all-empty records in direct CSV input.
+- Restore omitted configurator sources and assets so the current source can
+  build the full engine, including the Stata bridge's heap guidance.
+- Derive build/archive/test versions from `VERSION`, validate installed metadata,
+  include every maintained workspace/configurator resource in package checks,
+  and exclude Git history from source archives.
+- Replace missing private default fixtures with clearly identified public
+  synthetic fixtures exercising all existing structural contracts. Historical
+  private-form count checks remain available as an explicit additional run.
+
+### Changed
+- Add compact Overview, Questions, Compare, and Map views, with shared filters,
+  weighting and currency controls. Questions can be searched and inspected on
+  demand, while the report remains available for printing.
+- Keep data/statistical rules independent of the selected chart presentation.
+
 ## [2.3.0] — in development
 
 ### Fixed

@@ -54,7 +54,7 @@ final class SurveyCtoQuestionnaireParser {
     // ------------------------------------------------------------------
 
     static QuestionnaireSpec parseXform(String xml) {
-        HtmlQuestionnaireParser.Node document = HtmlQuestionnaireParser.MiniHtml.parse(xml);
+        HtmlQuestionnaireParser.Node document = HtmlQuestionnaireParser.MiniHtml.parseXml(xml);
         HtmlQuestionnaireParser.Node model = firstByLocalName(document, "model");
         HtmlQuestionnaireParser.Node body = firstByLocalName(document, "body");
         if (model == null || body == null) {

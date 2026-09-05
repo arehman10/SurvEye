@@ -16,7 +16,7 @@ import java.util.Map;
 
 /** Entry point for the Survey Solutions dashboard engine and Stata wrapper. */
 public final class SurvEye {
-    public static final String VERSION = "2.2.0";
+    public static final String VERSION = "2.3.2";
 
     private SurvEye() {}
 
@@ -103,6 +103,10 @@ public final class SurvEye {
             describe(config.questionnaire, config);
             return;
         }
+        if ("configure".equals(config.mode)) {
+            configure(config);
+            return;
+        }
         QuestionnaireSpec spec = QuestionnaireParser.parseFile(config.questionnaire);
         if (config.strict && !spec.warnings.isEmpty()) {
             throw new IllegalArgumentException("Strict mode rejected " + spec.warnings.size() + " questionnaire parser warning(s). Run describe to inspect them.");
@@ -157,8 +161,9 @@ public final class SurvEye {
         requireDifferent(statusKey, "Status file", logoKey, "logo file");
 
         if ("main".equals(config.mode)) config.mode = "build";
-        if (!"build".equals(config.mode) && !"demo".equals(config.mode) && !"describe".equals(config.mode)) {
-            throw new IllegalArgumentException("mode must be build, demo, or describe.");
+        if (!"build".equals(config.mode) && !"demo".equals(config.mode)
+                && !"describe".equals(config.mode) && !"configure".equals(config.mode)) {
+            throw new IllegalArgumentException("mode must be build, demo, describe, or configure.");
         }
         config.demo = config.demo || "demo".equals(config.mode);
         if ("describe".equals(config.mode)) return;
@@ -167,6 +172,15 @@ public final class SurvEye {
         requireDifferent(outputKey, "Output file", statusKey, "status file");
         requireDifferent(outputKey, "Output file", diagnosticsKey, "diagnostics file");
         requireDifferent(outputKey, "Output file", configKey, "configuration file");
+
+        // Configurators do not read survey responses, but their output must
+        // have the same input-file protections as a dashboard build.
+        if ("configure".equals(config.mode)) {
+            requireDifferent(outputKey, "Output file", dataKey, "CSV data file");
+            requireDifferent(outputKey, "Output file", boundariesKey, "boundaries file");
+            requireDifferent(outputKey, "Output file", logoKey, "logo file");
+            return;
+        }
 
         if (!config.demo) {
             if (blank(config.data)) throw new IllegalArgumentException("A CSV data file is required outside demo mode.");
@@ -296,6 +310,26 @@ public final class SurvEye {
         }
     }
 
+    private static void configure(DashboardConfig config) throws Exception {
+        QuestionnaireSpec spec = QuestionnaireParser.parseFile(config.questionnaire);
+        if (config.strict && !spec.warnings.isEmpty()) {
+            throw new IllegalArgumentException("Strict mode rejected " + spec.warnings.size()
+                    + " questionnaire parser warning(s). Run describe to inspect them.");
+        }
+        String html = ConfiguratorRenderer.render(spec, config);
+        writeAtomic(config.output, html, config.replace);
+        Map<String, String> values = new LinkedHashMap<String, String>();
+        values.put("success", "1");
+        values.put("message", "Configurator created successfully.");
+        values.put("output", config.output);
+        values.put("title", safe(spec.title));
+        values.put("k_sections", Integer.toString(spec.sections.size()));
+        values.put("k_questions", Integer.toString(spec.questions.size()));
+        values.put("engine_version", VERSION);
+        writeStatus(config.status, values);
+        if (!config.stataPlugin) System.out.println("SurvEye configurator created: " + config.output);
+    }
+
     private static void describe(String questionnaire, DashboardConfig config) throws Exception {
         QuestionnaireSpec spec = QuestionnaireParser.parseFile(questionnaire);
         if (config != null && config.strict && !spec.warnings.isEmpty()) {
@@ -411,7 +445,7 @@ public final class SurvEye {
 
     private static DashboardConfig readConfig(String filename) throws IOException {
         DashboardConfig config = new DashboardConfig();
-        List<String> lines = Files.readAllLines(Paths.get(filename), StandardCharsets.UTF_8);
+        List<String> lines = Util.lenientReadLines(Paths.get(filename));
         for (String line : lines) {
             if (line.isEmpty() || line.charAt(0) == '#') continue;
             int tab = line.indexOf('\t');
@@ -448,6 +482,7 @@ public final class SurvEye {
         else if (key.equals("ungroupvars")) c.ungroupVariables = value;
         else if (key.startsWith("datalabel.")) c.dataLabels.put(key.substring("datalabel.".length()), value);
         else if (key.startsWith("datatype.")) c.dataTypes.put(key.substring("datatype.".length()), value.trim().toLowerCase(Locale.ROOT));
+        else if (key.startsWith("datavar.")) c.dataVars.put(key.substring("datavar.".length()), value.trim().toLowerCase(Locale.ROOT));
         else if (key.startsWith("dataformat.")) c.dataFormats.put(key.substring("dataformat.".length()), value.trim().toLowerCase(Locale.ROOT));
         else if (key.startsWith("datavalue.")) addDataValueLabel(c, key, value);
         else if (key.equals("bars")) c.bars = value;

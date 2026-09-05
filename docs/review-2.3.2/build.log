@@ -1,0 +1,6 @@
+warning: [options] source value 8 is obsolete and will be removed in a future release
+warning: [options] target value 8 is obsolete and will be removed in a future release
+warning: [options] To suppress warnings about obsolete options, use -Xlint:-options.
+3 warnings
+Built /mnt/data/surveye_work/surveye-2.3.2/surveye.jar
+Built /mnt/data/surveye_work/surveye-2.3.2/surveye_2_3_2.jar

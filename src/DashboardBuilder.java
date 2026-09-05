@@ -175,6 +175,7 @@ final class DashboardBuilder {
                     throw new IllegalArgumentException("Selected variable " + requested + " is not present in the current data.");
                 }
                 question = question.copy();
+                applyQuestionOverrides(question, table, config);
                 questionnaireSelected.add(question);
             }
         } else {
@@ -207,6 +208,7 @@ final class DashboardBuilder {
                 question = inferredQuestion(table, requested, config, true);
             } else {
                 question = question.copy();
+                applyQuestionOverrides(question, table, config);
                 model.warnings.add("customvars() includes questionnaire variable " + requested
                         + "; questionnaire metadata was kept.");
             }
@@ -265,7 +267,7 @@ final class DashboardBuilder {
             panel.members.add(q.variable);
             panel.fullLabel = q.label;
             panel.title = Util.shortLabel(q.label, q.variable, 100);
-            panel.kind = kind;
+            panel.kind = meta.kind;
             panel.rawType = q.rawType;
             panel.subsection = q.subsection;
             panel.section = q.section;
@@ -316,6 +318,10 @@ final class DashboardBuilder {
                 String mapByColumn = requireDataColumn(table, config.mapBy, config.demo, "mapby");
                 model.requiredColumns.add(mapByColumn);
                 Question mapQuestion = spec.findQuestion(config.mapBy);
+                if (mapQuestion != null) {
+                    mapQuestion = mapQuestion.copy();
+                    applyQuestionOverrides(mapQuestion, table, config);
+                }
                 if (!model.metadata.containsKey(mapByColumn)) {
                     if (mapQuestion == null && table != null) mapQuestion = inferredQuestion(table, config.mapBy, config,
                             customNames.contains(config.mapBy.toLowerCase(Locale.ROOT)));
@@ -335,6 +341,7 @@ final class DashboardBuilder {
 
         if (model.panels.isEmpty()) throw new IllegalArgumentException("No indicators could be charted from the selected variables.");
 
+        pruneUnusedVariables(model, table);
         List<Map<String, Object>> data = config.demo ? demoData(model, config) : realData(model, table, config);
         model.observations = data.size();
         if (model.observations == 0) throw new IllegalArgumentException("The analysis sample contains no observations.");
@@ -379,6 +386,9 @@ final class DashboardBuilder {
         }
         VariableMeta meta = model.metadata.get(variable);
         if (meta != null) {
+            if ("completion".equals(meta.kind)) {
+                throw new IllegalArgumentException("usdvars() cannot convert a completion-only text or media variable: " + variable + ".");
+            }
             if (meta.stataFormat != null && meta.stataFormat.matches("(?i)^%t[cdwmqhyb].*")) {
                 throw new IllegalArgumentException("usdvars() may not contain a Stata date/time variable: " + variable + ".");
             }
@@ -439,6 +449,10 @@ final class DashboardBuilder {
             ensureAuxiliaryMetadata(model, spec, table, config, customNames, variable,
                     numericStatistic || (!config.demo && table != null && table.mostlyNumeric(variable)) ? "hist" : "bar");
             VariableMeta meta = model.metadata.get(variable);
+            if (numericStatistic && meta != null && "completion".equals(meta.kind)) {
+                throw new IllegalArgumentException("tablestats(" + statistic
+                        + ") cannot summarize a completion-only text or media variable: " + requestedVariable + ".");
+            }
             if (statistic.startsWith("share:") && meta != null && meta.canonicalCodes) {
                 statistic = "share:" + Util.canonicalCode(statistic.substring("share:".length()));
             }
@@ -495,6 +509,7 @@ final class DashboardBuilder {
             question.type = "hist".equals(preferredKind) ? "numeric" : "single";
             question.rawType = "configured data variable";
         } else question = question.copy();
+        applyQuestionOverrides(question, table, config);
         String kind = "filter".equals(preferredKind) ? "filter"
                 : ("numeric".equals(question.type) ? "hist" : preferredKind);
         model.metadata.put(variable, metadata(question, kind, table, config));
@@ -502,6 +517,15 @@ final class DashboardBuilder {
 
     private static List<String> observedMapGroups(CsvTable table, String variable, VariableMeta meta) {
         LinkedHashSet<String> groups = new LinkedHashSet<String>();
+        if ("completion".equals(meta.kind)) {
+            // Missing completion values have no map category. Never derive
+            // group names from the original text/media response.
+            if (table == null) groups.add("true");
+            else for (String[] row : table.rows) {
+                if (completionValue(row, table, variable, meta) != null) { groups.add("true"); break; }
+            }
+            return new ArrayList<String>(groups);
+        }
         if (table == null) {
             for (String value : positiveCodes(meta)) {
                 String group = normalizeFilterValue(value, meta);
@@ -576,6 +600,45 @@ final class DashboardBuilder {
         return true;
     }
 
+    /** Stata metadata can supply missing printable-form types, never override a declared text type. */
+    static void applyQuestionOverrides(Question question, CsvTable table, DashboardConfig config) {
+        if (question == null || config == null) return;
+        String key = lower(question.variable);
+        String label = config.dataLabels.get(key);
+        if (!blank(label) && (blank(question.label) || question.label.equals(question.variable))) {
+            question.label = Util.displayLabel(label, question.variable);
+        }
+        // SurveyCTO printables omit field types, using this exact placeholder.
+        // Stata emits datatype metadata automatically, so it is not explicit
+        // consent to publish actual questionnaire text as response categories.
+        if (!"open or note".equals(question.rawType)) return;
+        String suppliedType = config.dataTypes.get(key);
+        Map<String, String> labels = config.dataValueLabels.get(key);
+        if (blank(suppliedType)) {
+            if (labels == null || labels.isEmpty()) return;
+            suppliedType = "single";
+        }
+        if ("text".equals(suppliedType)) question.type = "text";
+        else if ("date".equals(suppliedType)) question.type = "date";
+        else if ("numeric".equals(suppliedType)) question.type = "numeric";
+        else if ("single".equals(suppliedType) || "categorical".equals(suppliedType)
+                || "string".equals(suppliedType)) question.type = "single";
+        else throw new IllegalArgumentException("datatype." + question.variable
+                + " must be numeric, single, categorical, string, text, or date.");
+        question.rawType += " · typed " + question.type;
+        if ("single".equals(question.type) && question.options.isEmpty()) {
+            if (labels != null) for (Map.Entry<String, String> entry : labels.entrySet()) {
+                question.options.add(new QuestionOption(entry.getKey(),
+                        blank(entry.getValue()) ? entry.getKey() : entry.getValue(), false));
+            }
+            if (question.options.isEmpty() && table != null) {
+                for (String value : table.distinct(question.variable, 100)) {
+                    question.options.add(new QuestionOption(value, value, false));
+                }
+            }
+        }
+    }
+
     private static Question inferredQuestion(CsvTable table, String variable, DashboardConfig config, boolean declaredCustom) {
         Question q = new Question();
         q.variable = table.canonical(variable);
@@ -583,7 +646,11 @@ final class DashboardBuilder {
         String suppliedLabel = config == null ? null : config.dataLabels.get(key);
         q.label = Util.displayLabel(suppliedLabel, q.variable);
         String suppliedType = config == null ? null : config.dataTypes.get(key);
-        if ("date".equals(suppliedType)) q.type = "date";
+        // An explicit text declaration requests completion reduction for a
+        // data-only field. Ordinary Stata string categories are emitted as
+        // single and must keep their exact category values.
+        if ("text".equals(suppliedType)) q.type = "text";
+        else if ("date".equals(suppliedType)) q.type = "date";
         else if ("single".equals(suppliedType) || "categorical".equals(suppliedType) || "string".equals(suppliedType)) q.type = "single";
         else if ("numeric".equals(suppliedType)) q.type = "numeric";
         else q.type = table.mostlyNumeric(variable) ? "numeric" : "single";
@@ -629,7 +696,9 @@ final class DashboardBuilder {
                                     Set<String> histograms, Set<String> discrete, Set<String> continuous,
                                     DashboardConfig config, boolean explicit) {
         String key = q.variable.toLowerCase(Locale.ROOT);
-        if (unstableLinkedQuestion(q)) return explicit ? "completion" : null;
+        // Privacy is a property of the question, independent of a user's
+        // chart override or whether it is displayed as a chart at all.
+        if (requiresCompletion(q)) return explicit ? "completion" : null;
         if ("multi".equals(q.type)) {
             if (histograms.contains(key) || donuts.contains(key)) {
                 throw new IllegalArgumentException("Multi-select variable " + q.variable
@@ -648,8 +717,6 @@ final class DashboardBuilder {
             return config != null && config.autoDiscrete && inferredDiscrete(q, table, config) ? "discrete" : "hist";
         }
         if ("date".equals(q.type)) return "date";
-        if ("text".equals(q.type) || "other".equals(q.type) || "gps".equals(q.type)
-                || "picture".equals(q.type) || "audio".equals(q.type)) return explicit ? "completion" : null;
         int categories = positiveOptions(q).size();
         if (looksYesNo(q)) return "yesno";
         if (categories >= 2) return "bar";
@@ -680,19 +747,26 @@ final class DashboardBuilder {
 
     private static VariableMeta metadata(Question q, String kind, CsvTable table, DashboardConfig config) {
         VariableMeta meta = new VariableMeta();
+        boolean completionOnly = requiresCompletion(q) || "completion".equals(kind);
+        if (completionOnly) kind = "completion";
         meta.variable = q.variable;
         meta.label = Util.displayLabel(q.label, q.variable);
         meta.kind = kind;
         meta.distributionMode = "discrete".equals(kind) ? "discrete" : "hist".equals(kind) ? "continuous" : "auto";
-        meta.nonnegative = "discrete".equals(kind) || isStrongCount(q);
+        // Count wording and a discrete display suggest presentation only.
+        // Missing/special codes carry exclusions; legitimate signed values
+        // must survive every numeric chart choice.
+        meta.nonnegative = false;
         meta.rawType = q.rawType;
         meta.stataFormat = config.dataFormats.get(q.variable.toLowerCase(Locale.ROOT));
-        meta.multi = "multi".equals(q.type);
+        meta.multi = !completionOnly && "multi".equals(q.type);
         meta.canonicalCodes = hasIntegerCodes(q) && !"inferred from data".equals(q.rawType);
         for (QuestionOption option : q.options) {
             String code = meta.canonicalCodes ? Util.canonicalCode(option.code) : option.code.trim();
-            if (!meta.labels.containsKey(code)) meta.order.add(code);
-            meta.labels.put(code, blank(option.label) ? code : option.label);
+            if (!completionOnly) {
+                if (!meta.labels.containsKey(code)) meta.order.add(code);
+                meta.labels.put(code, blank(option.label) ? code : option.label);
+            }
             if (option.special) meta.specialCodes.add(code);
         }
         for (String code : Util.splitWords(config.missingCodes)) {
@@ -700,7 +774,15 @@ final class DashboardBuilder {
             meta.missingCodes.add(missingCode);
             meta.specialCodes.add(missingCode);
         }
-        if (table != null && meta.multi) meta.expandedColumns.putAll(table.expandedColumns(q));
+        if (table != null && "multi".equals(q.type)) meta.expandedColumns.putAll(table.expandedColumns(q));
+        if (completionOnly) {
+            meta.filterMode = "completion";
+            meta.order.add("true");
+            meta.order.add("false");
+            String language = DashboardI18n.resolve(null, config).uiLanguage;
+            meta.labels.put("true", DashboardI18n.text(language, "answered"));
+            meta.labels.put("false", DashboardI18n.text(language, "missing"));
+        }
         if (table != null && meta.labels.isEmpty()
                 && (kind.equals("donut") || kind.equals("bar") || kind.equals("yesno") || kind.equals("filter"))) {
             for (String value : table.distinct(q.variable, Math.max(100, config.maxCategories + 1))) {
@@ -718,17 +800,23 @@ final class DashboardBuilder {
         return COUNT_SIGNAL.matcher(text).find() && !CONTINUOUS_SIGNAL.matcher(text).find();
     }
 
+    private static boolean requiresCompletion(Question q) {
+        return q != null && (unstableLinkedQuestion(q) || "text".equals(q.type)
+                || "other".equals(q.type) || "gps".equals(q.type)
+                || "picture".equals(q.type) || "audio".equals(q.type));
+    }
+
     private static void validateForcedDiscrete(Question q, CsvTable table, DashboardConfig config) {
         if (!"numeric".equals(q.type) && (table == null || !table.mostlyNumeric(q.variable))) {
             throw new IllegalArgumentException("discrete() requires a numeric variable: " + q.variable + ".");
         }
         if (table == null || config == null) return;
-        NumericProfile profile = numericProfile(q, table, config, true);
+        NumericProfile profile = numericProfile(q, table, config);
         if (profile.nonInteger) {
             throw new IllegalArgumentException("discrete(" + q.variable + ") contains noninteger values; use continuous(" + q.variable + ") instead.");
         }
         if (profile.count == 0) {
-            throw new IllegalArgumentException("discrete(" + q.variable + ") has no valid nonnegative values after exclusions.");
+            throw new IllegalArgumentException("discrete(" + q.variable + ") has no valid values after exclusions.");
         }
         // maxcategories() governs categorical displays and filter controls.
         // A numeric integer distribution has a different rendering contract:
@@ -746,7 +834,7 @@ final class DashboardBuilder {
         if (CONTINUOUS_SIGNAL.matcher(text).find()) return false;
         boolean strong = isStrongCount(q);
         if (table == null) return strong;
-        NumericProfile profile = numericProfile(q, table, config, strong);
+        NumericProfile profile = numericProfile(q, table, config);
         if (profile.count < 2 || profile.nonInteger || profile.min < 0) return false;
         double span = profile.max - profile.min;
         if (strong) return profile.distinct <= 40 && span <= 60;
@@ -755,8 +843,7 @@ final class DashboardBuilder {
                 && span <= 12 && support > 0 && profile.distinct / support >= 0.50;
     }
 
-    private static NumericProfile numericProfile(Question q, CsvTable table, DashboardConfig config,
-                                                  boolean excludeAllNegative) {
+    private static NumericProfile numericProfile(Question q, CsvTable table, DashboardConfig config) {
         NumericProfile profile = new NumericProfile();
         Set<String> configuredMissing = lowerSet(Util.splitWords(config.missingCodes));
         Set<String> special = new HashSet<String>();
@@ -769,7 +856,7 @@ final class DashboardBuilder {
             if (configuredMissing.contains(token)) continue;
             Double value = CsvTable.parseNumber(raw);
             if (value == null) continue;
-            if (value.doubleValue() < 0 && (excludeAllNegative || special.contains(token))) continue;
+            if (value.doubleValue() < 0 && special.contains(token)) continue;
             profile.count++;
             if (value.doubleValue() != Math.rint(value.doubleValue())) profile.nonInteger = true;
             profile.min = Math.min(profile.min, value.doubleValue());
@@ -826,6 +913,7 @@ final class DashboardBuilder {
         for (String variable : requested) {
             if (automatic && model.filters.size() >= 3) break;
             Question q = spec.findQuestion(variable);
+            if (q != null) { q = q.copy(); applyQuestionOverrides(q, table, config); }
             if (!config.demo && (table == null || (q == null ? !table.has(variable) : !table.hasQuestion(q)))) {
                 throw new IllegalArgumentException("Filter variable is not present in the data: " + variable);
             }
@@ -1017,6 +1105,7 @@ final class DashboardBuilder {
                 throw new IllegalArgumentException("Highlight variable is not present in the data: " + variable);
             }
             Question q = spec.findQuestion(variable);
+            if (q != null) { q = q.copy(); applyQuestionOverrides(q, table, config); }
             String canonical = table == null ? variable : table.canonical(variable);
             HighlightCard card = new HighlightCard();
             card.variable = canonical == null ? variable : canonical;
@@ -1159,6 +1248,10 @@ final class DashboardBuilder {
 
         String compareColumn = requireDataColumn(table, config.compareBy, config.demo, "compareby");
         Question compareQuestion = spec.findQuestion(config.compareBy);
+        if (compareQuestion != null) {
+            compareQuestion = compareQuestion.copy();
+            applyQuestionOverrides(compareQuestion, table, config);
+        }
         if (compareQuestion == null && table != null) {
             compareQuestion = inferredQuestion(table, config.compareBy, config,
                     customNames.contains(config.compareBy.toLowerCase(Locale.ROOT)));
@@ -1172,7 +1265,9 @@ final class DashboardBuilder {
             compareMeta.variable = compareColumn;
             model.metadata.put(compareColumn, compareMeta);
         }
-        List<String> levels = observedFilterValues(table, compareColumn, compareMeta, 7);
+        compareMeta.filterMode = filterMode(compareQuestion, compareMeta, table, compareColumn);
+        List<String> levels = observedFilterValues(table, compareColumn, compareMeta,
+                blank(config.compareLevels) ? 7 : Integer.MAX_VALUE);
         if (!blank(config.compareLevels)) {
             levels = selectedComparisonLevels(config.compareLevels, levels, compareMeta);
         }
@@ -1440,6 +1535,50 @@ final class DashboardBuilder {
         rebuildPanels(model);
     }
 
+    /** Retain the data dependencies of the final report, after panel capping. */
+    private static void pruneUnusedVariables(DashboardModel model, CsvTable table) {
+        Set<String> retained = new LinkedHashSet<String>();
+        for (ChartPanel panel : model.panels) {
+            retained.addAll(lowerSet(panel.memberVariables()));
+            if (!blank(panel.compareBy)) retained.add(lower(panel.compareBy));
+        }
+        for (DashboardFilter filter : model.filters) retained.add(lower(filter.variable));
+        for (HighlightCard highlight : model.highlights) retained.add(lower(highlight.variable));
+        retained.addAll(lowerSet(model.usdVariables));
+        if (model.summaryTable != null) {
+            retained.add(lower(model.summaryTable.by));
+            retained.addAll(lowerSet(model.summaryTable.variables));
+        }
+        if (model.weighted) retained.add(lower(model.weightVariable));
+        if (!blank(model.latitude)) {
+            retained.add(lower(model.latitude));
+            retained.add(lower(model.longitude));
+            if (!blank(model.mapBy)) retained.add(lower(model.mapBy));
+        }
+        java.util.Iterator<Map.Entry<String, VariableMeta>> entries = model.metadata.entrySet().iterator();
+        while (entries.hasNext()) {
+            Map.Entry<String, VariableMeta> entry = entries.next();
+            if (!retained.contains(lower(entry.getKey()))) entries.remove();
+            else if ("completion".equals(entry.getValue().kind)) {
+                // Resolve automatic language from the whole questionnaire,
+                // including completion fields that are only auxiliary.
+                entry.getValue().labels.put("true", DashboardI18n.text(model.uiLanguage, "answered"));
+                entry.getValue().labels.put("false", DashboardI18n.text(model.uiLanguage, "missing"));
+            }
+        }
+        model.requiredColumns.clear();
+        for (VariableMeta meta : model.metadata.values()) {
+            if (!meta.expandedColumns.isEmpty()) model.requiredColumns.addAll(meta.expandedColumns.values());
+            else model.requiredColumns.add(meta.variable);
+        }
+        if (model.weighted) model.requiredColumns.add(table == null
+                ? model.weightVariable : table.canonical(model.weightVariable));
+        if (!blank(model.latitude)) {
+            model.requiredColumns.add(table == null ? model.latitude : table.canonical(model.latitude));
+            model.requiredColumns.add(table == null ? model.longitude : table.canonical(model.longitude));
+        }
+    }
+
     private static void rebuildPanels(DashboardModel model) {
         model.panels.clear();
         model.familyPanels = 0;
@@ -1552,7 +1691,10 @@ final class DashboardBuilder {
                 } else {
                     if (lat == 0 && lon == 0) zeroCoords++;
                     model.mapValid++;
-                    if (!model.mapGeometry.contains(lon, lat)) model.mapOutside++;
+                    if (!model.mapGeometry.contains(lon, lat)) {
+                        model.mapOutside++;
+                        model.mapOutsideRows.add(out.size());
+                    }
                     double x = model.mapGeometry.projectX(lon, lat);
                     double y = model.mapGeometry.projectY(lon, lat);
                     int decimals = "heat".equals(model.mapType) ? 1 : "points".equals(model.mapType) ? 3 : 2;
@@ -1629,8 +1771,14 @@ final class DashboardBuilder {
 
     private static boolean hasIntegerCodes(Question question) {
         if (question == null || question.options.isEmpty()) return false;
+        Map<String, String> declaredCodes = new HashMap<String, String>();
         for (QuestionOption option : question.options) {
             if (option.code == null || !option.code.trim().matches("[+-]?\\d+")) return false;
+            String code = option.code.trim();
+            String previous = declaredCodes.put(Util.canonicalCode(code), code);
+            // Numeric aliases are safe only when every declared category stays
+            // distinct. A form may intentionally define both "01" and "1".
+            if (previous != null && !previous.equals(code)) return false;
         }
         return true;
     }

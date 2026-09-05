@@ -14,21 +14,23 @@ d live-filtered numeric summaries,
 d Arabic/Urdu right-to-left interfaces, Unicode, and optional Leaflet GPS maps
 d with Google or OpenStreetMap base layers.
 d
-d Version: 2.3.0
+d Version: 2.3.2
 d Requires: Stata 16 or newer
 d Author: Attique Ur Rehman
 d Affiliation: Enterprise Analysis Unit, World Bank
 d Repository: https://github.com/arehman10/SurvEye
 d Support: https://github.com/arehman10/SurvEye/issues
-d Distribution-Date: 20260802
+d Distribution-Date: 20260905
 d License: MIT
 d
 f surveye.ado
 f surveye.sthlp
 F surveye.jar
-F surveye_2_3_0.jar
+F surveye_2_3_2.jar
 f example.do
 f README.md
+f REVIEW_NOTES.md
+f QA_REPORT.md
 f LICENSE
 f THIRDPARTY-LICENSES.md
 f CHANGELOG.md

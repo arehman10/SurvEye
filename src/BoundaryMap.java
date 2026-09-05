@@ -59,6 +59,7 @@ public final class BoundaryMap {
          * unwrapped domain as {@link #minLon} and {@link #maxLon}.
          */
         public final List<List<String>> encodedFeatures;
+        public final List<String> featureLabels;
         public final double minLon;
         public final double maxLon;
         public final double minLat;
@@ -90,6 +91,9 @@ public final class BoundaryMap {
             this.sourceLabel = sourceLabel;
             this.pathD = pathD;
             this.encodedFeatures = encodeFeatures(features);
+            List<String> labels = new ArrayList<String>(features.size());
+            for (GeoFeature feature : features) labels.add(feature.label);
+            this.featureLabels = Collections.unmodifiableList(labels);
             this.minLon = bounds.minLon;
             this.maxLon = bounds.maxLon;
             this.minLat = bounds.minLat;
@@ -146,8 +150,10 @@ public final class BoundaryMap {
                 return false;
             }
             for (GeoFeature feature : features) {
+                if (!feature.bounds.contains(x, lat, tol)) continue;
                 boolean inside = false;
                 for (GeoRing ring : feature.rings) {
+                    if (!ring.bounds.contains(x, lat, tol)) continue;
                     int state = pointInRing(x, lat, ring.xy, tol);
                     if (state == 2) {
                         return true;
@@ -267,7 +273,11 @@ public final class BoundaryMap {
                             collectedFeatures.add(feature);
                         }
                     }, warnings, exactBounds);
-            List<GeoFeature> features = collectedFeatures;
+            List<GeoFeature> features = new ArrayList<GeoFeature>(collectedFeatures.size());
+            for (GeoFeature feature : collectedFeatures) {
+                String label = match.labels.get(feature.sourceIndex);
+                features.add(new GeoFeature(feature.rings, feature.sourceIndex, label == null ? "" : label));
+            }
 
             if (features.isEmpty() || !exactBounds.isValid()) {
                 throw new IllegalArgumentException("The matched boundary records for '"
@@ -443,6 +453,14 @@ public final class BoundaryMap {
             }
             String name = entry.getName().replace('\\', '/');
             String lower = name.toLowerCase(Locale.ROOT);
+            boolean metadata = false;
+            for (String component : lower.split("/")) {
+                if ("__macosx".equals(component) || component.startsWith("._")) {
+                    metadata = true;
+                    break;
+                }
+            }
+            if (metadata) continue;
             int dot = lower.lastIndexOf('.');
             if (dot < 0) {
                 continue;
@@ -557,6 +575,9 @@ public final class BoundaryMap {
                 throw new IllegalArgumentException("Boundary DBF must contain at least one of NAM_0, ISO_A3, ISO_A2, or WB_A3.");
             }
             DbfField nameField = byName.get("NAM_0");
+            DbfField districtField = byName.get("NAM_2");
+            DbfField provinceField = byName.get("NAM_1");
+            Map<Integer, String> labels = new HashMap<Integer, String>();
             boolean admin2 = byName.containsKey("NAM_2")
                     || byName.containsKey("ADM2CD_C")
                     || byName.containsKey("ADM2_CODE");
@@ -583,12 +604,17 @@ public final class BoundaryMap {
                 }
                 if (matched) {
                     matches.set(index);
+                    String district = districtField == null ? "" : decodeField(record, districtField, charset).trim();
+                    String province = provinceField == null ? "" : decodeField(record, provinceField, charset).trim();
+                    String label = district.isEmpty() ? province : district;
+                    if (!district.isEmpty() && !province.isEmpty() && !district.equals(province)) label += " · " + province;
+                    labels.put(index, label);
                     if (displayName == null && nameField != null) {
                         displayName = decodeField(record, nameField, charset).trim();
                     }
                 }
             }
-            return new DbfMatch(matches, displayName, admin2, recordCount);
+            return new DbfMatch(matches, displayName, admin2, recordCount, labels);
         } finally {
             in.close();
         }
@@ -600,7 +626,10 @@ public final class BoundaryMap {
         }
         String value = readSmallText(zip, cpg, 1024).trim();
         String key = value.replace("\uFEFF", "").trim();
-        if ("65001".equals(key)) {
+        String normalized = key.replace("-", "").replace("_", "").toUpperCase(Locale.ROOT);
+        // Python/GIS exporters may name BOM-aware UTF-8 as UTF-8-SIG.
+        // DBF records are fixed-width UTF-8 bytes, not a different charset.
+        if ("65001".equals(key) || "UTF8SIG".equals(normalized) || "UTF8".equals(normalized)) {
             key = "UTF-8";
         } else if ("1252".equals(key)) {
             key = "windows-1252";
@@ -706,7 +735,7 @@ public final class BoundaryMap {
                     GeoFeature feature = shapeToFeature(parsed, center, tolerance,
                             exactBounds, pass);
                     if (feature != null && !feature.rings.isEmpty() && consumer != null) {
-                        consumer.accept(feature);
+                        consumer.accept(new GeoFeature(feature.rings, sequence - 1, ""));
                     }
                 }
             }
@@ -859,7 +888,7 @@ public final class BoundaryMap {
                     }
                 }
                 if (!rings.isEmpty()) {
-                    reduced.add(new GeoFeature(rings));
+                    reduced.add(new GeoFeature(rings, feature.sourceIndex, feature.label));
                 }
             }
             current = reduced;
@@ -1535,17 +1564,30 @@ public final class BoundaryMap {
 
     private static final class GeoRing {
         final double[] xy;
+        final Bounds bounds = new Bounds();
 
         GeoRing(double[] xy) {
             this.xy = xy;
+            for (int i = 0; i < xy.length; i += 2) bounds.add(xy[i], xy[i + 1]);
         }
     }
 
     private static final class GeoFeature {
         final List<GeoRing> rings;
+        final int sourceIndex;
+        final String label;
+        final Bounds bounds = new Bounds();
 
-        GeoFeature(List<GeoRing> rings) {
+        GeoFeature(List<GeoRing> rings) { this(rings, -1, ""); }
+
+        GeoFeature(List<GeoRing> rings, int sourceIndex, String label) {
             this.rings = Collections.unmodifiableList(new ArrayList<GeoRing>(rings));
+            this.sourceIndex = sourceIndex;
+            this.label = label;
+            for (GeoRing ring : rings) {
+                bounds.add(ring.bounds.minLon, ring.bounds.minLat);
+                bounds.add(ring.bounds.maxLon, ring.bounds.maxLat);
+            }
         }
     }
 
@@ -1563,6 +1605,11 @@ public final class BoundaryMap {
             maxLon = Math.max(maxLon, lon);
             minLat = Math.min(minLat, lat);
             maxLat = Math.max(maxLat, lat);
+        }
+
+        boolean contains(double lon, double lat, double tolerance) {
+            return lon >= minLon - tolerance && lon <= maxLon + tolerance
+                    && lat >= minLat - tolerance && lat <= maxLat + tolerance;
         }
 
         boolean isValid() {
@@ -1714,11 +1761,14 @@ public final class BoundaryMap {
         final String displayName;
         final boolean admin2;
         final int recordCount;
+        final Map<Integer, String> labels;
 
         DbfMatch(BitSet matches,
                  String displayName,
                  boolean admin2,
-                 int recordCount) {
+                 int recordCount,
+                 Map<Integer, String> labels) {
+            this.labels = labels;
             this.matches = matches;
             this.displayName = displayName;
             this.admin2 = admin2;

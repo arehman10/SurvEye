@@ -101,6 +101,7 @@ final class DashboardConfig {
     String ungroupVariables;
     final Map<String, String> dataLabels = new LinkedHashMap<String, String>();
     final Map<String, String> dataTypes = new LinkedHashMap<String, String>();
+    final Map<String, String> dataVars = new LinkedHashMap<String, String>();
     final Map<String, String> dataFormats = new LinkedHashMap<String, String>();
     final Map<String, Map<String, String>> dataValueLabels = new LinkedHashMap<String, Map<String, String>>();
     String bars;
@@ -199,6 +200,7 @@ final class DashboardModel {
     int mapValid;
     int mapMissing;
     int mapOutside;
+    final List<Integer> mapOutsideRows = new ArrayList<Integer>();
     BoundaryMap.MapGeometry mapGeometry;
     String latitude;
     String longitude;

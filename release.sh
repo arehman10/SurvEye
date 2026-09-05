@@ -4,7 +4,8 @@ set -euo pipefail
 # Build clean source and SSC-ready archives without copying retired artifacts
 # that may still exist in a developer's working directory.
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-VERSION="2.3.0"
+. "$ROOT/scripts/version.sh"
+VERSION="$SURVEYE_VERSION"
 OUTPUT="${1:-$ROOT/../release}"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/surveye-release.XXXXXX")"
 SOURCE_NAME="surveye-$VERSION"
@@ -17,18 +18,29 @@ cleanup() {
 }
 [ -z "${SURVEYE_KEEP_STAGING:-}" ] && trap cleanup EXIT HUP INT TERM
 
-"$ROOT/build.sh"
-"$ROOT/tests/check_stata_source.sh"
-"$ROOT/tests/check_package.sh"
+bash "$ROOT/build.sh"
+sh "$ROOT/tests/run_all.sh"
 
 mkdir -p "$OUTPUT" "$WORK/$SOURCE_NAME" "$WORK/$GITHUB_NAME" "$WORK/$SSC_NAME"
 
 rsync -a \
+  --exclude '/.git' \
   --exclude '/build/' \
   --exclude '/release/' \
-  --exclude '/tests/node_modules/' \
-  --exclude '/tests/qa-output/' \
-  --exclude '/tests/design-output/' \
+  --exclude 'node_modules/' \
+  --exclude 'qa-output/' \
+  --exclude 'design-output/' \
+  --exclude 'test-results/' \
+  --exclude 'playwright-report/' \
+  --exclude 'coverage/' \
+  --exclude '__pycache__/' \
+  --exclude '__MACOSX/' \
+  --exclude '.pytest_cache/' \
+  --exclude '.DS_Store' \
+  --exclude '._*' \
+  --exclude '*.py[co]' \
+  --exclude '*.[zZ][iI][pP]' \
+  --exclude '*.log' \
   --exclude 'suso_dashboard*' \
   --exclude 'surveydash*' \
   --exclude '/surveye_*.jar' \
@@ -37,7 +49,7 @@ rsync -a \
 
 # Keep exactly the current release-specific JAR even when an older versioned
 # JAR remains in a developer's working tree for local compatibility testing.
-cp -p "$ROOT/surveye_2_3_0.jar" "$WORK/$SOURCE_NAME/"
+cp -p "$ROOT/$SURVEYE_RELEASE_JAR" "$WORK/$SOURCE_NAME/"
 
 # GitHub accepts the same clean source tree, but the upload archive must be
 # flat so README.md, stata.toc, and surveye.pkg land at the repository root.
@@ -46,7 +58,7 @@ rsync -a "$WORK/$SOURCE_NAME/" "$WORK/$GITHUB_NAME/"
 # SSC submissions must not include .pkg or stata.toc (the archive generates
 # both), and only files the installed package needs belong here. The generic
 # surveye.jar is a GitHub convenience the command never loads.
-SSC_FILES="surveye.ado surveye.sthlp surveye_2_3_0.jar example.do LICENSE THIRDPARTY-LICENSES.md"
+SSC_FILES="surveye.ado surveye.sthlp $SURVEYE_RELEASE_JAR example.do LICENSE THIRDPARTY-LICENSES.md"
 for relative in $SSC_FILES; do
   cp -p "$ROOT/$relative" "$WORK/$SSC_NAME/$relative"
 done
@@ -60,8 +72,8 @@ done
   zip -X -qr "$WORK/$GITHUB_NAME.zip" .
 )
 (
-  # SSC submission archives are flat: stata.toc, the package descriptor, and
-  # the files named by that descriptor live at the archive root.
+  # SSC submission archives are flat; SSC generates its own stata.toc and
+  # package descriptor, which are deliberately absent from this archive.
   cd "$WORK/$SSC_NAME"
   zip -X -qr "$WORK/$SSC_NAME.zip" .
 )
@@ -77,6 +89,17 @@ unzip -Z1 "$WORK/$SOURCE_NAME.zip" > "$SOURCE_LIST"
 unzip -Z1 "$WORK/$GITHUB_NAME.zip" > "$GITHUB_LIST"
 unzip -Z1 "$WORK/$SSC_NAME.zip" > "$SSC_LIST"
 
+if grep -Eq '(^|/)[.]git(/|$)' "$SOURCE_LIST" "$GITHUB_LIST" "$SSC_LIST"; then
+  echo "FAIL: Git metadata or a worktree pointer entered a release archive" >&2
+  exit 1
+fi
+
+if grep -Eiq '(^|/)(__pycache__|__MACOSX|node_modules|qa-output|design-output|test-results|playwright-report|coverage|[.]pytest_cache)(/|$)|(^|/)[.]DS_Store$|(^|/)[.]_[^/]*$|[.](zip|pyc|pyo|log)$' \
+  "$SOURCE_LIST" "$GITHUB_LIST" "$SSC_LIST"; then
+  echo "FAIL: an old archive, cache, or local test output entered the release" >&2
+  exit 1
+fi
+
 if grep -Eiq '(^|/)(suso_dashboard|surveydash)[^/]*$' "$SOURCE_LIST"; then
   echo "FAIL: retired installable filename entered the source release" >&2
   exit 1
@@ -90,8 +113,8 @@ if grep -Eiq '(^|/)(suso_dashboard|surveydash)' "$SSC_LIST"; then
   exit 1
 fi
 
-for required in README.md stata.toc surveye.pkg surveye.ado surveye.sthlp \
-  surveye.jar surveye_2_3_0.jar example.do LICENSE \
+for required in README.md stata.toc surveye.pkg surveye.ado surveye.sthlp VERSION \
+  surveye.jar "$SURVEYE_RELEASE_JAR" example.do LICENSE \
   THIRDPARTY-LICENSES.md CHANGELOG.md; do
   if ! grep -Fxq "$required" "$GITHUB_LIST"; then
     echo "FAIL: GitHub archive is missing root file $required" >&2

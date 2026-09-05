@@ -1,0 +1,1206 @@
+--- a/MANIFEST.MF
++++ b/MANIFEST.MF
+@@ -1,4 +1,4 @@
+ Manifest-Version: 1.0
+ Main-Class: SurvEye
+ Implementation-Title: SurvEye
+-Implementation-Version: 2.3.1
++Implementation-Version: 2.3.2
+--- a/VERSION
++++ b/VERSION
+@@ -1 +1 @@
+-2.3.1
++2.3.2
+--- a/build.sh
++++ b/build.sh
+@@ -33,8 +33,19 @@
+ cp "$ROOT"/src/resources/leaflet.css "$CLASSES/resources/"
+ cp "$ROOT"/src/resources/leaflet.js "$CLASSES/resources/"
+ cp "$ROOT"/src/resources/LEAFLET-LICENSE.txt "$CLASSES/resources/"
+-cp "$ROOT"/src/resources/noto-sans-arabic-arabic-400-normal.woff2 "$CLASSES/resources/"
+-cp "$ROOT"/src/resources/noto-sans-arabic-arabic-700-normal.woff2 "$CLASSES/resources/"
++# Fonts stay embedded in the runtime artifact. Source-only review packages may
++# omit loose font files; preserve the licensed embedded copies while rebuilding.
++for font in noto-sans-arabic-arabic-400-normal.woff2 noto-sans-arabic-arabic-700-normal.woff2; do
++  if [[ -f "$ROOT/src/resources/$font" ]]; then
++    cp "$ROOT/src/resources/$font" "$CLASSES/resources/"
++  elif [[ -f "$GENERIC_JAR" ]]; then
++    (cd "$CLASSES" && java -m jdk.jartool/sun.tools.jar.Main xf "$GENERIC_JAR" "resources/$font")
++    test -s "$CLASSES/resources/$font" || { echo "Missing embedded runtime asset: $font" >&2; exit 1; }
++  else
++    echo "Build requires the supplied surveye.jar or original resource assets." >&2
++    exit 1
++  fi
++done
+ cp "$ROOT"/src/resources/NOTO-SANS-ARABIC-LICENSE.txt "$CLASSES/resources/"
+ cp "$ROOT"/src/resources/world50.tsv "$CLASSES/resources/"
+ cp "$ROOT"/src/resources/country_aliases.tsv "$CLASSES/resources/"
+--- a/src/BoundaryMap.java
++++ b/src/BoundaryMap.java
+@@ -59,6 +59,7 @@
+          * unwrapped domain as {@link #minLon} and {@link #maxLon}.
+          */
+         public final List<List<String>> encodedFeatures;
++        public final List<String> featureLabels;
+         public final double minLon;
+         public final double maxLon;
+         public final double minLat;
+@@ -90,6 +91,9 @@
+             this.sourceLabel = sourceLabel;
+             this.pathD = pathD;
+             this.encodedFeatures = encodeFeatures(features);
++            List<String> labels = new ArrayList<String>(features.size());
++            for (GeoFeature feature : features) labels.add(feature.label);
++            this.featureLabels = Collections.unmodifiableList(labels);
+             this.minLon = bounds.minLon;
+             this.maxLon = bounds.maxLon;
+             this.minLat = bounds.minLat;
+@@ -146,8 +150,10 @@
+                 return false;
+             }
+             for (GeoFeature feature : features) {
++                if (!feature.bounds.contains(x, lat, tol)) continue;
+                 boolean inside = false;
+                 for (GeoRing ring : feature.rings) {
++                    if (!ring.bounds.contains(x, lat, tol)) continue;
+                     int state = pointInRing(x, lat, ring.xy, tol);
+                     if (state == 2) {
+                         return true;
+@@ -267,7 +273,11 @@
+                             collectedFeatures.add(feature);
+                         }
+                     }, warnings, exactBounds);
+-            List<GeoFeature> features = collectedFeatures;
++            List<GeoFeature> features = new ArrayList<GeoFeature>(collectedFeatures.size());
++            for (GeoFeature feature : collectedFeatures) {
++                String label = match.labels.get(feature.sourceIndex);
++                features.add(new GeoFeature(feature.rings, feature.sourceIndex, label == null ? "" : label));
++            }
+ 
+             if (features.isEmpty() || !exactBounds.isValid()) {
+                 throw new IllegalArgumentException("The matched boundary records for '"
+@@ -443,6 +453,14 @@
+             }
+             String name = entry.getName().replace('\\', '/');
+             String lower = name.toLowerCase(Locale.ROOT);
++            boolean metadata = false;
++            for (String component : lower.split("/")) {
++                if ("__macosx".equals(component) || component.startsWith("._")) {
++                    metadata = true;
++                    break;
++                }
++            }
++            if (metadata) continue;
+             int dot = lower.lastIndexOf('.');
+             if (dot < 0) {
+                 continue;
+@@ -557,6 +575,9 @@
+                 throw new IllegalArgumentException("Boundary DBF must contain at least one of NAM_0, ISO_A3, ISO_A2, or WB_A3.");
+             }
+             DbfField nameField = byName.get("NAM_0");
++            DbfField districtField = byName.get("NAM_2");
++            DbfField provinceField = byName.get("NAM_1");
++            Map<Integer, String> labels = new HashMap<Integer, String>();
+             boolean admin2 = byName.containsKey("NAM_2")
+                     || byName.containsKey("ADM2CD_C")
+                     || byName.containsKey("ADM2_CODE");
+@@ -583,12 +604,17 @@
+                 }
+                 if (matched) {
+                     matches.set(index);
++                    String district = districtField == null ? "" : decodeField(record, districtField, charset).trim();
++                    String province = provinceField == null ? "" : decodeField(record, provinceField, charset).trim();
++                    String label = district.isEmpty() ? province : district;
++                    if (!district.isEmpty() && !province.isEmpty() && !district.equals(province)) label += " · " + province;
++                    labels.put(index, label);
+                     if (displayName == null && nameField != null) {
+                         displayName = decodeField(record, nameField, charset).trim();
+                     }
+                 }
+             }
+-            return new DbfMatch(matches, displayName, admin2, recordCount);
++            return new DbfMatch(matches, displayName, admin2, recordCount, labels);
+         } finally {
+             in.close();
+         }
+@@ -600,7 +626,10 @@
+         }
+         String value = readSmallText(zip, cpg, 1024).trim();
+         String key = value.replace("\uFEFF", "").trim();
+-        if ("65001".equals(key)) {
++        String normalized = key.replace("-", "").replace("_", "").toUpperCase(Locale.ROOT);
++        // Python/GIS exporters may name BOM-aware UTF-8 as UTF-8-SIG.
++        // DBF records are fixed-width UTF-8 bytes, not a different charset.
++        if ("65001".equals(key) || "UTF8SIG".equals(normalized) || "UTF8".equals(normalized)) {
+             key = "UTF-8";
+         } else if ("1252".equals(key)) {
+             key = "windows-1252";
+@@ -706,7 +735,7 @@
+                     GeoFeature feature = shapeToFeature(parsed, center, tolerance,
+                             exactBounds, pass);
+                     if (feature != null && !feature.rings.isEmpty() && consumer != null) {
+-                        consumer.accept(feature);
++                        consumer.accept(new GeoFeature(feature.rings, sequence - 1, ""));
+                     }
+                 }
+             }
+@@ -859,7 +888,7 @@
+                     }
+                 }
+                 if (!rings.isEmpty()) {
+-                    reduced.add(new GeoFeature(rings));
++                    reduced.add(new GeoFeature(rings, feature.sourceIndex, feature.label));
+                 }
+             }
+             current = reduced;
+@@ -1535,17 +1564,30 @@
+ 
+     private static final class GeoRing {
+         final double[] xy;
++        final Bounds bounds = new Bounds();
+ 
+         GeoRing(double[] xy) {
+             this.xy = xy;
++            for (int i = 0; i < xy.length; i += 2) bounds.add(xy[i], xy[i + 1]);
+         }
+     }
+ 
+     private static final class GeoFeature {
+         final List<GeoRing> rings;
+-
+-        GeoFeature(List<GeoRing> rings) {
++        final int sourceIndex;
++        final String label;
++        final Bounds bounds = new Bounds();
++
++        GeoFeature(List<GeoRing> rings) { this(rings, -1, ""); }
++
++        GeoFeature(List<GeoRing> rings, int sourceIndex, String label) {
+             this.rings = Collections.unmodifiableList(new ArrayList<GeoRing>(rings));
++            this.sourceIndex = sourceIndex;
++            this.label = label;
++            for (GeoRing ring : rings) {
++                bounds.add(ring.bounds.minLon, ring.bounds.minLat);
++                bounds.add(ring.bounds.maxLon, ring.bounds.maxLat);
++            }
+         }
+     }
+ 
+@@ -1563,6 +1605,11 @@
+             maxLon = Math.max(maxLon, lon);
+             minLat = Math.min(minLat, lat);
+             maxLat = Math.max(maxLat, lat);
++        }
++
++        boolean contains(double lon, double lat, double tolerance) {
++            return lon >= minLon - tolerance && lon <= maxLon + tolerance
++                    && lat >= minLat - tolerance && lat <= maxLat + tolerance;
+         }
+ 
+         boolean isValid() {
+@@ -1714,11 +1761,14 @@
+         final String displayName;
+         final boolean admin2;
+         final int recordCount;
++        final Map<Integer, String> labels;
+ 
+         DbfMatch(BitSet matches,
+                  String displayName,
+                  boolean admin2,
+-                 int recordCount) {
++                 int recordCount,
++                 Map<Integer, String> labels) {
++            this.labels = labels;
+             this.matches = matches;
+             this.displayName = displayName;
+             this.admin2 = admin2;
+--- a/src/DashboardBuilder.java
++++ b/src/DashboardBuilder.java
+@@ -1691,7 +1691,10 @@
+                 } else {
+                     if (lat == 0 && lon == 0) zeroCoords++;
+                     model.mapValid++;
+-                    if (!model.mapGeometry.contains(lon, lat)) model.mapOutside++;
++                    if (!model.mapGeometry.contains(lon, lat)) {
++                        model.mapOutside++;
++                        model.mapOutsideRows.add(out.size());
++                    }
+                     double x = model.mapGeometry.projectX(lon, lat);
+                     double y = model.mapGeometry.projectY(lon, lat);
+                     int decimals = "heat".equals(model.mapType) ? 1 : "points".equals(model.mapType) ? 3 : 2;
+--- a/src/DashboardI18n.java
++++ b/src/DashboardI18n.java
+@@ -201,6 +201,10 @@
+                 "hideMap", "Hide map",
+                 "interactiveMapOf", "Interactive map of",
+                 "preparingMap", "Preparing interactive map…",
++                "boundaryFeatures", "boundary features",
++                "fitInterviews", "Fit interviews",
++                "countryExtent", "Country extent",
++                "mapTilesUnavailable", "Some basemap tiles could not load. Embedded boundaries and points remain visible.",
+                 "mapGroups", "Map groups",
+                 "mapLayers", "Map layers",
+                 "zoomIn", "Zoom in",
+@@ -398,6 +402,10 @@
+                 "hideMap", "إخفاء الخريطة",
+                 "interactiveMapOf", "خريطة تفاعلية لـ",
+                 "preparingMap", "جارٍ إعداد الخريطة التفاعلية…",
++                "boundaryFeatures", "معالم الحدود",
++                "fitInterviews", "عرض المقابلات",
++                "countryExtent", "حدود الدولة",
++                "mapTilesUnavailable", "تعذر تحميل بعض مربعات الخريطة. تظل الحدود والنقاط المضمنة ظاهرة.",
+                 "mapGroups", "مجموعات الخريطة",
+                 "mapLayers", "طبقات الخريطة",
+                 "zoomIn", "تكبير",
+@@ -595,6 +603,10 @@
+                 "hideMap", "نقشہ چھپائیں",
+                 "interactiveMapOf", "انٹرایکٹو نقشہ:",
+                 "preparingMap", "انٹرایکٹو نقشہ تیار ہو رہا ہے…",
++                "boundaryFeatures", "حدود کے حصے",
++                "fitInterviews", "انٹرویوز دکھائیں",
++                "countryExtent", "ملک کی حدود",
++                "mapTilesUnavailable", "نقشے کے کچھ حصے لوڈ نہیں ہو سکے۔ شامل حدود اور مقامات نظر آتے رہیں گے۔",
+                 "mapGroups", "نقشے کے گروپس",
+                 "mapLayers", "نقشے کی تہیں",
+                 "zoomIn", "بڑا کریں",
+--- a/src/DashboardRenderer.java
++++ b/src/DashboardRenderer.java
+@@ -114,7 +114,7 @@
+                 .append("<a href=\"#overview\" class=\"active\">").append(Util.html(t(model, "overview"))).append("</a>");
+         for (int i = 0; i < model.sections.size(); i++) {
+             DashboardSection section = model.sections.get(i);
+-            out.append("<a href=\"#").append(Util.slug(section.title, i + 1)).append("\">")
++            out.append("<a title=\"").append(Util.html(section.title)).append("\" href=\"#").append(Util.slug(section.title, i + 1)).append("\">")
+                     .append(Util.html(Util.shortLabel(section.title, t(model, "section") + " " + (i + 1), 29))).append("</a>");
+         }
+         out.append("<span class=\"nav-actions\"><button type=\"button\" id=\"expand-all\">")
+@@ -173,7 +173,7 @@
+             out.append("</span></div>");
+         }
+         out.append("</div>");
+-        out.append("</div></div></div></section>\n");
++        out.append("</div></div></section>\n");
+         return out.toString();
+     }
+ 
+@@ -255,6 +255,14 @@
+                 .append("<span class=\"map-action\"><span class=\"map-show\">").append(Util.html(t(model, "showMap")))
+                 .append("</span><span class=\"map-hide\">").append(Util.html(t(model, "hideMap")))
+                 .append("</span><span class=\"map-chevron\" aria-hidden=\"true\">⌄</span></span></summary><div class=\"map-body\">")
++                .append("<div class=\"map-tools\"><span class=\"map-boundary-count\">")
++                .append(geometry.featureCount).append(' ').append(Util.html(t(model, "boundaryFeatures")))
++                .append("</span><button type=\"button\" class=\"ghost-btn\" id=\"map-fit-points\">")
++                .append(Util.html(t(model, "fitInterviews"))).append("</button>")
++                .append("<button type=\"button\" class=\"ghost-btn\" id=\"map-fit-country\">")
++                .append(Util.html(t(model, "countryExtent"))).append("</button></div>")
++                .append("<div class=\"map-tile-status\" id=\"map-tile-status\" role=\"status\" hidden>")
++                .append(Util.html(t(model, "mapTilesUnavailable"))).append("</div>")
+                 .append("<div class=\"map-stage\" id=\"map-stage\"><div id=\"leaflet-map\" class=\"leaflet-map\" role=\"application\" aria-label=\"")
+                 .append(Util.html(t(model, "interactiveMapOf"))).append(' ').append(Util.html(geometry.displayName)).append("\"></div>")
+                 .append("<div class=\"map-loading\" id=\"map-loading\">").append(Util.html(t(model, "preparingMap"))).append("</div></div>");
+@@ -262,8 +270,9 @@
+             out.append("<div class=\"map-legend\" id=\"map-legend\" aria-label=\"")
+                     .append(Util.html(t(model, "mapGroups"))).append("\"></div>");
+         }
+-        out.append("<div class=\"map-foot\"><span>").append(model.mapMissing).append(' ')
+-                .append(Util.html(t(model, "missingInvalid"))).append(" · ").append(model.mapOutside).append(' ')
++        out.append("<div class=\"map-foot\"><span id=\"map-diagnostics\" aria-live=\"polite\"><b id=\"map-missing\">")
++                .append(model.mapMissing).append("</b> ").append(Util.html(t(model, "missingInvalid")))
++                .append(" · <b id=\"map-outside\">").append(model.mapOutside).append("</b> ")
+                 .append(Util.html(t(model, "outsideBoundary"))).append("</span><span>")
+                 .append(Util.html(t(model, "boundary"))).append(": ").append(Util.html(geometry.sourceLabel))
+                 .append(" · ").append(Util.html(t(model, "coincidentPoints"))).append("</span></div></div></details>\n");
+@@ -458,6 +467,9 @@
+             map.put("lonCenter", model.mapGeometry.lonCenter);
+             map.put("boundaryAdmin2", model.mapGeometry.admin2);
+             map.put("boundary", model.mapGeometry.encodedFeatures);
++            map.put("boundaryLabels", model.mapGeometry.featureLabels);
++            map.put("boundaryFeatureCount", model.mapGeometry.featureCount);
++            map.put("outsideRows", model.mapOutsideRows);
+             map.put("by", model.mapBy);
+             if (!blank(model.mapBy) && model.metadata.containsKey(model.mapBy)) {
+                 VariableMeta by = model.metadata.get(model.mapBy);
+--- a/src/Models.java
++++ b/src/Models.java
+@@ -200,6 +200,7 @@
+     int mapValid;
+     int mapMissing;
+     int mapOutside;
++    final List<Integer> mapOutsideRows = new ArrayList<Integer>();
+     BoundaryMap.MapGeometry mapGeometry;
+     String latitude;
+     String longitude;
+--- a/src/SurvEye.java
++++ b/src/SurvEye.java
+@@ -16,7 +16,7 @@
+ 
+ /** Entry point for the Survey Solutions dashboard engine and Stata wrapper. */
+ public final class SurvEye {
+-    public static final String VERSION = "2.3.1";
++    public static final String VERSION = "2.3.2";
+ 
+     private SurvEye() {}
+ 
+--- a/src/resources/dashboard.css
++++ b/src/resources/dashboard.css
+@@ -394,3 +394,74 @@
+ .chart-popover .popover-actions{display:flex;justify-content:flex-end;gap:7px;margin-top:11px}
+ body[data-theme="dark"] .chart-popover{box-shadow:0 2px 4px rgba(0,0,0,.4),0 18px 44px rgba(0,0,0,.5)}
+ html[dir="rtl"] .chart-popover .popover-actions{justify-content:flex-start}
++
++/* 2.3.2 review: retain the original report, improve density and legibility.
++   Do not hide horizontal overflow globally: tables/nav scroll within their own
++   containers, and controls reflow rather than becoming unreachable. */
++body[data-theme="worldbank"]{--paper:#f5f7fa;--line:#dce3eb;--soft:#edf2f6;--shadow:0 1px 3px rgba(4,26,51,.045),0 6px 20px rgba(4,26,51,.045)}
++.topbar .wrap{gap:12px;min-width:0}.product{flex:1 1 0;min-width:0;max-width:none}.top-spacer{flex:0 0 0}
++body[data-density="compact"] .hero{padding-top:24px}
++body[data-density="compact"] .hero-inner{padding:30px 34px 54px;border-radius:18px;box-shadow:0 8px 24px rgba(3,18,36,.12)}
++body[data-density="compact"] .hero h1{font-size:clamp(30px,3.2vw,44px);line-height:1.12;max-width:32ch}
++body[data-density="compact"] .hero .subtitle{font-size:15px;margin-top:12px}
++body[data-density="compact"] .eyebrow{margin-bottom:10px}
++body[data-density="compact"] .notice{margin-top:18px;padding:8px 11px}
++.controls{max-width:100%;min-width:0;box-shadow:0 3px 12px rgba(4,26,51,.075)}
++.controls-toolbar,.controls-summary,.estimate-toggles{min-width:0}
++.chip{font-size:12px;line-height:1.35;padding:7px 11px;border-color:color-mix(in srgb,var(--muted) 28%,var(--line));color:var(--ink)}
++.filter-label{font-size:11px}.chip[aria-pressed="true"]{box-shadow:inset 0 0 0 1px rgba(255,255,255,.15)}
++.highlight-grid,.message-grid{grid-template-columns:repeat(12,minmax(0,1fr))}
++.highlight,.message{grid-column:span var(--summary-span,4);min-width:0}
++.kpi,.highlight{padding:15px 17px;box-shadow:0 1px 3px rgba(4,26,51,.05)}
++.kpi-label,.highlight-label{color:var(--ink);font-size:12px;overflow-wrap:anywhere}
++.highlight-detail{font-size:11px}.highlight-value{font-size:26px}
++.profile-card{min-width:0;max-width:100%}.profile-head>div{min-width:0}
++.profile-status{white-space:normal;flex:0 1 42%;line-height:1.5;text-align:end}
++.profile-table-scroll{max-width:100%}.profile-table{font-size:12px}.profile-table thead th{font-size:10px}
++.cell-bar i{background:var(--blue)}
++.panel-title{font-size:15px;line-height:1.32;min-height:39px;overflow-wrap:anywhere}
++body[data-density="comfortable"] .panel-title{font-size:16px}
++.panel-meta{min-height:24px}.panel-tabs button{font-size:10px;padding:4px 7px}
++.panel-sub,.panel-stat,.summary-parts{font-size:11px}.varbadge{font-size:10px}
++.stats-table{font-size:11px}.stats-note{font-size:10px}
++.panel{box-shadow:0 1px 3px rgba(4,26,51,.04),0 4px 14px rgba(4,26,51,.03)}
++@media(hover:hover){.panel:hover{transform:none;box-shadow:0 4px 18px rgba(4,26,51,.07)}.kpi:hover,.highlight:hover{transform:none}}
++.map-tools{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:4px 0 10px}
++.map-boundary-count{margin-inline-end:auto;font-size:11px;color:var(--muted);font-weight:650}
++.map-tile-status{font-size:11px;color:var(--muted);background:var(--soft);border-radius:7px;padding:7px 10px;margin-bottom:8px}
++.map-tile-status[hidden]{display:none!important}
++body[data-density="compact"] .map-stage{height:420px;min-height:300px}
++.leaflet-map{background:#e9eff3}.leaflet-tooltip.boundary-tooltip{font-size:12px;font-weight:650;padding:7px 10px;color:#102e46;background:#fff;border:1px solid #cfdae2}
++.map-legend{gap:8px 18px;font-size:12px}.map-foot{font-size:11px;line-height:1.55}.map-foot>span{min-width:0;overflow-wrap:anywhere}
++.map-head>div:first-child{min-width:0}.map-meta{overflow-wrap:anywhere}
++html[dir="rtl"] .profile-status{text-align:start}
++@media(min-width:601px) and (max-width:1120px){
++  .controls-toolbar{flex-wrap:wrap}.controls-summary{flex:1 1 100%;flex-wrap:wrap;justify-content:flex-end}
++  .controls-summary .matched{margin-inline-start:auto}
++}
++@media(max-width:600px){
++  .topbar .wrap{gap:8px}.product{max-width:none}.badge{flex-shrink:0}.brandtext span{display:none}
++  body[data-density="compact"] .hero-inner{padding:24px 22px 50px}
++  body[data-density="compact"] .hero h1{font-size:30px}
++  .notice{flex-wrap:wrap;gap:4px}.controls-toolbar{flex-wrap:wrap}
++  .controls-summary{flex:1 1 100%;flex-wrap:wrap;gap:6px;order:3;margin-inline-start:0}
++  .controls-summary .matched{margin-inline-start:auto;font-size:11px}
++  .controls-summary .ghost-btn{padding:7px 8px}.estimate-toggles{order:2;gap:10px}
++  .profile-status{text-align:start;margin-top:8px}.panel-title{min-height:0}
++  body[data-density="comfortable"] .wrap{padding-inline:16px}
++  .highlight-grid,.message-grid{grid-template-columns:repeat(12,minmax(0,1fr))}
++  .map-tools{gap:6px}.map-boundary-count{flex:1 1 100%}
++  body[data-density="compact"] .map-stage{height:360px}.map-count b{font-size:23px}
++}
++@media print{
++  .map-tools,.map-tile-status{display:none!important}.hero-inner{box-shadow:none!important}
++  .highlight,.message{break-inside:avoid}.profile-card{box-shadow:none}
++}
++/* Numeric headers keep the chart type/tabs separate from the longer summary. */
++.panel--hist .panel-meta,.panel--discrete .panel-meta{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 8px;white-space:normal;min-height:43px}
++.panel--hist .panel-sub,.panel--discrete .panel-sub{grid-column:1;grid-row:1}
++.panel--hist .panel-tabs,.panel--discrete .panel-tabs{grid-column:2;grid-row:1}
++.panel--hist .panel-stat,.panel--discrete .panel-stat{grid-column:1/-1;grid-row:2;white-space:nowrap;font-size:10.5px}
++.panel--hist .panel-stat:before,.panel--discrete .panel-stat:before{display:none}
++/* Keep simple proportion cards vertically balanced alongside taller distributions. */
++.panel--yesno .chartwrap--yesno,.panel--completion .chartwrap--completion{margin-bottom:auto}
+--- a/src/resources/dashboard.js
++++ b/src/resources/dashboard.js
+@@ -885,7 +885,15 @@
+     var key=cat.keys.slice().sort(function(a,b){return cat.counts[b]-cat.counts[a];})[0],share=100*cat.counts[key]/cat.total,label=labelFor(variable,key);
+     return result(pct(share),shortened(label,46)+" · "+(multi?tr("respondentsN","respondents n"):tr("validN","valid n"))+"="+localNumber(cat.n),tr("share","Share")+": "+label,cat.n,share);
+   }
+-  function highlight(variable,source){return summary(variable,source);}
++  function highlight(variable,source){
++    source=source||rows();var meta=metaFor(variable)||{},affirmative=meta.affirmative||[];
++    if(meta.multi||!affirmative.length||!(meta.negative||[]).length)return summary(variable,source);
++    var cat=categorical(variable,source,false),keys=affirmative.filter(function(key){return !isSpecial(variable,key)&&!isConfiguredMissing(variable,key);});
++    if(!keys.length)return summary(variable,source);
++    var number=cat.total>0?100*keys.reduce(function(total,key){return total+(cat.counts[key]||0);},0)/cat.total:null;
++    var label=keys.map(function(key){return labelFor(variable,key);}).join(" / ");
++    return{value:number===null?tr("notAvailable","n/a"):pct(number),detail:number===null?(cat.n?tr("noPositiveWeight","No positive weight"):tr("noValidResponses","No valid responses")):shortened(label,46)+" · "+tr("validN","valid n")+"="+localNumber(cat.n),statistic:tr("share","Share")+": "+label,valid:cat.n,excluded:Math.max(0,source.length-cat.n),number:number};
++  }
+ 
+   function profileLevels(variable,source){
+     var meta=metaFor(variable)||{},observed=dictionary(),seen=dictionary(),levels=[];
+@@ -1020,7 +1028,15 @@
+     if(!compact||(window.matchMedia&&window.matchMedia("(max-width: 1120px)").matches))return 2;
+     return 3;
+   }
++  function balanceSummaryGrids(){
++    document.querySelectorAll(".highlight-grid,.message-grid").forEach(function(grid){
++      var children=Array.prototype.slice.call(grid.children),count=children.length,max=window.innerWidth<=600?1:window.innerWidth<=900?2:3;
++      var sizes=max===3&&grid.classList.contains("highlight-grid")&&count===4?[4]:balancedRows(count,max),index=0;
++      sizes.forEach(function(size){for(var i=0;i<size;i++)children[index++].style.setProperty("--summary-span",""+(12/size));});
++    });
++  }
+   function balanceGrids(maximum){
++    balanceSummaryGrids();
+     var max=maximum||gridMaximum();
+     document.querySelectorAll(".grid").forEach(function(grid){
+       var panels=Array.prototype.slice.call(grid.children).filter(function(panel){return panel.classList.contains("panel")&&!panel.classList.contains("hidden");}),pattern=[],rowIndex=0,run=[];
+@@ -1495,6 +1511,17 @@
+   function unwrapMapLon(lon){var center=CONFIG.map&&isFinite(+CONFIG.map.lonCenter)?+CONFIG.map.lonCenter:0,value=normalizeMapLon(lon);while(value-center>180)value-=360;while(value-center < -180)value+=360;return value;}
+   function mapPoints(source){var points=[];source.forEach(function(row,index){var lat=+row._lat,rawLon=+row._lon;if(isMissing(row._lat)||isMissing(row._lon)||!isFinite(lat)||!isFinite(rawLon))return;var group=CONFIG.map.by&&!isMissing(row._mapby)?""+row._mapby:"";points.push({lat:lat,lon:normalizeMapLon(rawLon),mapLon:unwrapMapLon(rawLon),group:group,row:row,index:index});});return points;}
+   function decodeBoundaryRing(encoded){var index=0,lat=0,lon=0,ring=[];function delta(){var result=0,factor=1,byte=0;do{if(index>=encoded.length)return null;byte=encoded.charCodeAt(index++)-63;result+=(byte&31)*factor;factor*=32;}while(byte>=32);return result%2?-(Math.floor(result/2)+1):Math.floor(result/2);}while(index<encoded.length){var dlat=delta(),dlon=delta();if(dlat===null||dlon===null)return[];lat+=dlat;lon+=dlon;ring.push([lat/100000,lon/100000]);}if(ring.length>=3)ring.push([ring[0][0],ring[0][1]]);return ring;}
++  function boundaryFeatures(){
++    var labels=CONFIG.map.boundaryLabels||[];
++    return(CONFIG.map.boundary||[]).map(function(feature,index){return{label:labels[index]||"",rings:(feature||[]).map(decodeBoundaryRing).filter(function(ring){return ring.length>=4;})};}).filter(function(feature){return feature.rings.length;});
++  }
++  function updateMapDiagnostics(source){
++    if(!state.mapOutsideRecords)state.mapOutsideRecords=new Set((CONFIG.map.outsideRows||[]).map(function(index){return DATA[index];}));
++    var valid=mapPoints(source),missing=document.getElementById("map-missing"),outside=document.getElementById("map-outside");
++    if(missing)missing.textContent=localNumber(source.length-valid.length);
++    if(outside)outside.textContent=localNumber(source.reduce(function(total,row){return total+(state.mapOutsideRecords.has(row)?1:0);},0));
++  }
++  function fitMapCountry(){if(state.leafletMap)state.leafletMap.fitBounds([[CONFIG.map.minLat,CONFIG.map.minLon],[CONFIG.map.maxLat,CONFIG.map.maxLon]],{padding:[18,18],maxZoom:9,animate:false});}
+   function boundaryLines(){var lines=[];(CONFIG.map.boundary||[]).forEach(function(feature){(feature||[]).forEach(function(encoded){var ring=decodeBoundaryRing(encoded);if(ring.length>=4)lines.push(ring);});});return lines;}
+   function mapBases(){var googleOpts={subdomains:["0","1","2","3"],maxZoom:21,attribution:"Google"},bases=dictionary();
+     bases[tr("googleHybrid","Google Hybrid")]=L.tileLayer("https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",googleOpts);
+@@ -1511,6 +1538,7 @@
+   function spiderPoints(points,map){var buckets=dictionary();points.forEach(function(point){var key=point.lat.toFixed(6)+":"+point.mapLon.toFixed(6);(buckets[key]||(buckets[key]=[])).push(point);});Object.keys(buckets).forEach(function(key){var bucket=buckets[key];if(bucket.length===1){bucket[0].displayLatLng=L.latLng(bucket[0].lat,bucket[0].mapLon);bucket[0].spidered=false;return;}var base=map.project([bucket[0].lat,bucket[0].mapLon],map.getZoom());bucket.forEach(function(point,index){var ring=Math.floor(index/10),slots=Math.min(10,bucket.length-ring*10),slot=index-ring*10,angle=2*Math.PI*slot/slots-Math.PI/2,radius=8+ring*6,offset=L.point(base.x+Math.cos(angle)*radius,base.y+Math.sin(angle)*radius);point.displayLatLng=map.unproject(offset,map.getZoom());point.spidered=true;});});return points;}
+   function renderLeafletPoints(fit){if(!state.leafletMap||state.mapRedrawing)return;state.mapRedrawing=true;try{var map=state.leafletMap,mapElement=map.getContainer(),points=mapPoints(state.mapRows),groups=(CONFIG.map.groups||[]).map(function(group){return ""+group;}),colors=dictionary();points.forEach(function(point){if(point.group&&groups.indexOf(point.group)<0)groups.push(point.group);});groups.forEach(function(group,index){colors[group]=palette[index%palette.length];});mapLegend(groups,colors);state.mapPointLayer.clearLayers();var count=document.getElementById("map-count");if(count)count.textContent=localNumber(points.length);
+     if((fit||state.mapNeedsFit)&&points.length){var bounds=L.latLngBounds(points.map(function(point){return[point.lat,point.mapLon];}));if(points.length===1)map.setView(bounds.getCenter(),Math.min(15,map.getMaxZoom()),{animate:false});else map.fitBounds(bounds,{padding:[28,28],maxZoom:15,animate:false});state.mapNeedsFit=false;if(mapElement){mapElement.dataset.fitRevision=""+((+mapElement.dataset.fitRevision||0)+1);mapElement.dataset.fitBounds=bounds.toBBoxString();}}
++    if((fit||state.mapNeedsFit)&&!points.length){fitMapCountry();state.mapNeedsFit=false;}
+     if(CONFIG.map.type==="points"){
+       spiderPoints(points,map).forEach(function(point){var color=point.group?colors[point.group]:css("--chart-blue","#009fda"),marker=L.circleMarker(point.displayLatLng,{renderer:state.leafletPointRenderer||undefined,className:"surveye-point",radius:5.3,color:"#fff",weight:1.5,fillColor:color,fillOpacity:.86});marker.bindTooltip(mapTooltipNode(groupLabel(point.group)||tr("interviewLocation","Interview location")),{direction:"top",offset:[0,-4],opacity:.95});marker.bindPopup(popupHtml(point,point.spidered),{maxWidth:300});marker.addTo(state.mapPointLayer);makePointMarkerAccessible(marker,point);});
+     }else{
+@@ -1518,12 +1546,34 @@
+     }
+     if(mapElement)mapElement.dataset.renderedMarkers=state.mapPointLayer.getLayers().length;
+   }finally{state.mapRedrawing=false;}}
+-  function initializeLeafletMap(){if(state.leafletMap||!CONFIG.map||typeof L==="undefined")return;var loading=document.getElementById("map-loading"),bases=mapBases(),requestedBase=baseName(CONFIG.map.basemap),selected=owns(bases,requestedBase)?bases[requestedBase]:bases[tr("googleHybrid","Google Hybrid")],map=L.map("leaflet-map",{preferCanvas:true,zoomControl:false,attributionControl:false});state.leafletMap=map;state.leafletPointRenderer=typeof L.svg==="function"?L.svg({padding:.5}):null;selected.addTo(map);state.mapPointLayer=L.layerGroup().addTo(map);L.control.zoom({position:rtl?"topright":"topleft",zoomInTitle:tr("zoomIn","Zoom in"),zoomOutTitle:tr("zoomOut","Zoom out")}).addTo(map);L.control.attribution({position:rtl?"bottomleft":"bottomright"}).addTo(map);L.control.scale({imperial:false,position:rtl?"bottomright":"bottomleft"}).addTo(map);var overlays=dictionary();
+-    var lines=boundaryLines();if(lines.length){var admin2=!!CONFIG.map.boundaryAdmin2,casing=L.polyline(lines,{interactive:false,color:"#ffffff",weight:admin2?1.9:3.2,opacity:admin2?.5:.62,lineCap:"round",lineJoin:"round",smoothFactor:0}),detail=L.polyline(lines,{interactive:false,color:admin2?"#173f5f":"#002244",weight:admin2?.72:1.45,opacity:admin2?.78:.9,lineCap:"round",lineJoin:"round",smoothFactor:0});state.mapBoundaryLayer=L.layerGroup([casing,detail]).addTo(map);overlays[tr("surveyBoundary","Survey boundary")]=state.mapBoundaryLayer;var mapElement=map.getContainer();mapElement.dataset.boundaryReady="true";mapElement.dataset.boundaryRings=""+lines.length;}
++  function initializeLeafletMap(){if(state.leafletMap||!CONFIG.map||typeof L==="undefined")return;var loading=document.getElementById("map-loading"),bases=mapBases(),requestedBase=baseName(CONFIG.map.basemap),selected=owns(bases,requestedBase)?bases[requestedBase]:bases[tr("googleHybrid","Google Hybrid")],map=L.map("leaflet-map",{preferCanvas:true,zoomControl:false,attributionControl:false});state.leafletMap=map;
++    Object.keys(bases).forEach(function(name){bases[name].on("tileerror",function(){var note=document.getElementById("map-tile-status");if(note&&map.hasLayer(bases[name]))note.hidden=false;});});
++    map.on("baselayerchange",function(){var note=document.getElementById("map-tile-status");if(note)note.hidden=true;});
++    state.leafletPointRenderer=typeof L.svg==="function"?L.svg({padding:.5}):null;selected.addTo(map);state.mapPointLayer=L.layerGroup().addTo(map);L.control.zoom({position:rtl?"topright":"topleft",zoomInTitle:tr("zoomIn","Zoom in"),zoomOutTitle:tr("zoomOut","Zoom out")}).addTo(map);L.control.attribution({position:rtl?"bottomleft":"bottomright"}).addTo(map);L.control.scale({imperial:false,position:rtl?"bottomright":"bottomleft"}).addTo(map);var overlays=dictionary();
++    var lines=boundaryLines();if(lines.length){var admin2=!!CONFIG.map.boundaryAdmin2,casing=L.polyline(lines,{interactive:false,color:"#ffffff",weight:admin2?2.2:3.2,opacity:.8,lineCap:"round",lineJoin:"round",smoothFactor:0}),layers=[casing];
++      if(typeof L.polygon==="function"){
++        var pane=map.createPane("surveye-boundaries");
++        // Explicit SVG points use the normal overlay pane; keep boundaries behind them.
++        pane.style.zIndex="350";
++        casing.options.pane="surveye-boundaries";
++        var boundaryRenderer=L.canvas({pane:"surveye-boundaries",padding:.5});
++        boundaryFeatures().forEach(function(feature){
++          var options={renderer:boundaryRenderer,pane:"surveye-boundaries",color:"#274b67",weight:admin2?.85:1.45,opacity:.86,fill:true,fillColor:"#6298b5",fillOpacity:.09,fillRule:"evenodd",smoothFactor:0},polygon=L.polygon(feature.rings,options);
++          if(feature.label)polygon.bindTooltip(mapTooltipNode(feature.label),{sticky:true,direction:"top",className:"boundary-tooltip"});
++          polygon.on("mouseover",function(){polygon.setStyle({weight:1.8,fillOpacity:.23});});
++          polygon.on("mouseout",function(){polygon.setStyle({weight:options.weight,fillOpacity:options.fillOpacity});});
++          layers.push(polygon);
++        });
++      }else layers.push(L.polyline(lines,{interactive:false,color:"#274b67",weight:admin2?.85:1.45,opacity:.86,smoothFactor:0}));
++      state.mapBoundaryLayer=L.layerGroup(layers).addTo(map);overlays[tr("surveyBoundary","Survey boundary")]=state.mapBoundaryLayer;var mapElement=map.getContainer();mapElement.dataset.boundaryReady="true";mapElement.dataset.boundaryRings=""+lines.length;}
+     var layerControl=L.control.layers(bases,overlays,{collapsed:compact,position:rtl?"topleft":"topright"}).addTo(map),layerToggle=layerControl.getContainer().querySelector(".leaflet-control-layers-toggle");if(layerToggle){layerToggle.title=tr("mapLayers","Map layers");layerToggle.setAttribute("aria-label",tr("mapLayers","Map layers"));}map.on("zoomend",function(){renderLeafletPoints(false);});map.whenReady(function(){if(loading)loading.classList.add("is-hidden");renderLeafletPoints(true);});map.fitBounds([[CONFIG.map.minLat,CONFIG.map.minLon],[CONFIG.map.maxLat,CONFIG.map.maxLon]],{padding:[18,18],maxZoom:9,animate:false});
+   }
+-  function drawMap(source){if(!CONFIG.map)return;state.mapRows=source||[];var count=document.getElementById("map-count"),points=mapPoints(state.mapRows);if(count)count.textContent=localNumber(points.length);var card=document.getElementById("spatial-map");if(card&&card.open){initializeLeafletMap();if(state.leafletMap){state.leafletMap.invalidateSize(false);renderLeafletPoints(true);}}}
+-  function wireMap(){if(!CONFIG.map)return;var card=document.getElementById("spatial-map");if(card&&card.tagName.toLowerCase()==="details")card.addEventListener("toggle",function(){if(card.open)requestAnimationFrame(function(){initializeLeafletMap();if(state.leafletMap){state.leafletMap.invalidateSize(false);renderLeafletPoints(state.mapNeedsFit);}});});if(card&&card.open)requestAnimationFrame(initializeLeafletMap);var stage=document.getElementById("map-stage");if(stage&&"ResizeObserver" in window)new ResizeObserver(function(){if(state.leafletMap)state.leafletMap.invalidateSize(false);}).observe(stage);else window.addEventListener("resize",function(){if(state.leafletMap)state.leafletMap.invalidateSize(false);});}
++  function drawMap(source){if(!CONFIG.map)return;state.mapRows=source||[];updateMapDiagnostics(state.mapRows);var count=document.getElementById("map-count"),points=mapPoints(state.mapRows);if(count)count.textContent=localNumber(points.length);var card=document.getElementById("spatial-map");if(card&&card.open){initializeLeafletMap();if(state.leafletMap){state.leafletMap.invalidateSize(false);renderLeafletPoints(true);}}}
++  function wireMap(){if(!CONFIG.map)return;
++    var fitPoints=document.getElementById("map-fit-points"),fitCountry=document.getElementById("map-fit-country");
++    if(fitPoints)fitPoints.addEventListener("click",function(){renderLeafletPoints(true);});
++    if(fitCountry)fitCountry.addEventListener("click",fitMapCountry);
++    var card=document.getElementById("spatial-map");if(card&&card.tagName.toLowerCase()==="details")card.addEventListener("toggle",function(){if(card.open)requestAnimationFrame(function(){initializeLeafletMap();if(state.leafletMap){state.leafletMap.invalidateSize(false);renderLeafletPoints(state.mapNeedsFit);}});});if(card&&card.open)requestAnimationFrame(initializeLeafletMap);var stage=document.getElementById("map-stage");if(stage&&"ResizeObserver" in window)new ResizeObserver(function(){if(state.leafletMap)state.leafletMap.invalidateSize(false);}).observe(stage);else window.addEventListener("resize",function(){if(state.leafletMap)state.leafletMap.invalidateSize(false);});}
+ 
+   var printDetails=null;
+   function beforePrint(){if(!printDetails)printDetails=Array.prototype.map.call(document.querySelectorAll("details.story,details#spatial-map"),function(node){return{node:node,open:node.open};});balanceGrids(2);document.querySelectorAll("details.story").forEach(function(section){section.open=true;});var map=document.getElementById("spatial-map");if(map&&map.tagName.toLowerCase()==="details")map.open=true;document.querySelectorAll("canvas.chart").forEach(function(canvas){ensureBuilt(canvas);});drawMap(rows());}
+--- a/src/resources/embedded-assets.sha256
++++ b/src/resources/embedded-assets.sha256
+@@ -0,0 +1,2 @@
++4e2ca0745c908761dc5c5db951662873887c59366fa1a5693ad22c0864abf1bd  noto-sans-arabic-arabic-400-normal.woff2
++d2bf5ac762d07f769e4e644a1f919649317cb5b62e20ab9ae02918862627b723  noto-sans-arabic-arabic-700-normal.woff2
+--- a/surveye.ado
++++ b/surveye.ado
+@@ -1,4 +1,4 @@
+-*! version 2.3.1 04sep2026
++*! version 2.3.2 05sep2026
+ 
+ program define surveye, rclass
+     version 16.0
+@@ -985,7 +985,7 @@
+     if missing(`outN') return scalar N = `sample_N'
+     return scalar sample_N = `sample_N'
+     return scalar weighted = `weighted'
+-    return local package_version "2.3.1"
++    return local package_version "2.3.2"
+ end
+ 
+ 
+@@ -993,7 +993,7 @@
+     version 16.0
+     args output theme background typography corners shadow motion pagewidth
+ 
+-    local jarname "surveye_2_3_1.jar"
++    local jarname "surveye_2_3_2.jar"
+     capture findfile `jarname'
+     if _rc {
+         display as error "`jarname' is not installed on the Stata ado-path"
+@@ -1107,7 +1107,7 @@
+     _surveye_read_status using `"`statusfile'"'
+     return add
+     if `"`macval(outquestionnaire)'"' == "" return local questionnaire `"`macval(using)'"'
+-    return local package_version "2.3.1"
++    return local package_version "2.3.2"
+ end
+ 
+ 
+@@ -1175,7 +1175,7 @@
+     _surveye_read_status using `"`statusfile'"'
+     return add
+     return local configurator `"`macval(saving)'"'
+-    return local package_version "2.3.1"
++    return local package_version "2.3.2"
+ end
+ 
+ 
+@@ -1423,7 +1423,7 @@
+         return local filename `"`macval(saving)'"'
+     }
+     if `"`macval(outquestionnaire)'"' == "" return local questionnaire `"`macval(using)'"'
+-    return local package_version "2.3.1"
++    return local package_version "2.3.2"
+ end
+ 
+ 
+@@ -1498,7 +1498,7 @@
+     version 16.0
+     args configfile statusfile diagnostics
+ 
+-    local jarname "surveye_2_3_1.jar"
++    local jarname "surveye_2_3_2.jar"
+     capture findfile `jarname'
+     if _rc {
+         display as error "`jarname' is not installed on the Stata ado-path"
+--- a/surveye.pkg
++++ b/surveye.pkg
+@@ -14,21 +14,23 @@
+ d Arabic/Urdu right-to-left interfaces, Unicode, and optional Leaflet GPS maps
+ d with Google or OpenStreetMap base layers.
+ d
+-d Version: 2.3.1
++d Version: 2.3.2
+ d Requires: Stata 16 or newer
+ d Author: Attique Ur Rehman
+ d Affiliation: Enterprise Analysis Unit, World Bank
+ d Repository: https://github.com/arehman10/SurvEye
+ d Support: https://github.com/arehman10/SurvEye/issues
+-d Distribution-Date: 20260904
++d Distribution-Date: 20260905
+ d License: MIT
+ d
+ f surveye.ado
+ f surveye.sthlp
+ F surveye.jar
+-F surveye_2_3_1.jar
++F surveye_2_3_2.jar
+ f example.do
+ f README.md
++f REVIEW_NOTES.md
++f QA_REPORT.md
+ f LICENSE
+ f THIRDPARTY-LICENSES.md
+ f CHANGELOG.md
+--- a/surveye.sthlp
++++ b/surveye.sthlp
+@@ -1,5 +1,5 @@
+ {smcl}
+-{* *! version 2.3.1 04sep2026}{...}
++{* *! version 2.3.2 05sep2026}{...}
+ {vieweralsosee "return" "help return"}{...}
+ {vieweralsosee "weight" "help weight"}{...}
+ {vieweralsosee "export delimited" "help export delimited"}{...}
+@@ -993,7 +993,7 @@
+ 
+ {phang2}{cmd:. which surveye}
+ 
+-{phang2}{cmd:. findfile surveye_2_3_1.jar}
++{phang2}{cmd:. findfile surveye_2_3_2.jar}
+ 
+ {phang2}{cmd:. java query}
+ 
+--- a/tests/BoundaryArchiveRegressionTest.java
++++ b/tests/BoundaryArchiveRegressionTest.java
+@@ -0,0 +1,123 @@
++import java.io.ByteArrayOutputStream;
++import java.io.IOException;
++import java.nio.ByteBuffer;
++import java.nio.ByteOrder;
++import java.nio.charset.Charset;
++import java.nio.charset.StandardCharsets;
++import java.nio.file.Files;
++import java.nio.file.Path;
++import java.util.ArrayList;
++import java.util.Arrays;
++import java.util.List;
++import java.util.zip.ZipEntry;
++import java.util.zip.ZipOutputStream;
++
++/** Tiny, entirely synthetic shapefiles; no GIS dependency or licensed Stata. */
++public final class BoundaryArchiveRegressionTest {
++    private static int assertions;
++    private static void check(boolean value, String message) {
++        assertions++;
++        if (!value) throw new AssertionError(message);
++    }
++    private static double[][] square(double x, double y, double size) {
++        return new double[][]{{x,y},{x,y+size},{x+size,y+size},{x+size,y},{x,y}};
++    }
++    private static byte[] polygon(double[][]... rings) {
++        int count = 0;
++        for (double[][] ring : rings) count += ring.length;
++        ByteBuffer b = ByteBuffer.allocate(44 + 4*rings.length + 16*count).order(ByteOrder.LITTLE_ENDIAN);
++        b.putInt(5); b.putDouble(0); b.putDouble(0); b.putDouble(180); b.putDouble(90);
++        b.putInt(rings.length); b.putInt(count);
++        int index=0; for (double[][] ring : rings) { b.putInt(index); index+=ring.length; }
++        for (double[][] ring : rings) for (double[] point : ring) { b.putDouble(point[0]); b.putDouble(point[1]); }
++        return b.array();
++    }
++    private static byte[] shapes() throws IOException {
++        List<byte[]> shapes=Arrays.asList(polygon(square(0,0,1)), polygon(square(70,0,1)),
++                new byte[4], polygon(square(79,6,1), square(79.4,6.4,.2)), polygon(square(81,8,1)));
++        int bytes=100; for (byte[] shape : shapes) bytes+=8+shape.length;
++        ByteBuffer b=ByteBuffer.allocate(bytes).order(ByteOrder.BIG_ENDIAN);
++        b.putInt(9994); b.position(24); b.putInt(bytes/2); b.order(ByteOrder.LITTLE_ENDIAN);
++        b.putInt(1000); b.putInt(5); b.position(100);
++        int number=1; for(byte[] shape:shapes) {
++            b.order(ByteOrder.BIG_ENDIAN);b.putInt(number++);b.putInt(shape.length/2);b.put(shape);
++        }
++        return b.array();
++    }
++    private static byte[] attributes(Charset charset) {
++        String[] fields={"NAM_0","NAM_1","NAM_2","ISO_A3"};
++        int[] lengths={36,24,64,3};int rowLength=1;
++        for(int length:lengths)rowLength+=length;
++        int header=33+32*fields.length;
++        ByteBuffer b=ByteBuffer.allocate(header+5*rowLength+1).order(ByteOrder.LITTLE_ENDIAN);
++        b.put((byte)3);b.position(4);b.putInt(5);b.putShort((short)header);b.putShort((short)rowLength);
++        int offset=1;
++        for(int i=0;i<fields.length;i++){
++            b.position(32+i*32);b.put(fields[i].getBytes(StandardCharsets.US_ASCII));
++            b.position(32+i*32+11);b.put((byte)'C');b.putInt(offset);b.put((byte)lengths[i]);offset+=lengths[i];
++        }
++        b.position(header-1);b.put((byte)13);
++        String[][] rows={{"Other","Elsewhere","Other","OTH"},{"Sri Lanka","Deleted","Deleted","LKA"},
++                {"Sri Lanka","No geometry","Null record","LKA"},{"Sri Lanka","Western","Colombo","LKA"},
++                {"Sri Lanka","Western","Gampáha < & >","LKA"}};
++        for(int i=0;i<rows.length;i++){
++            b.put((byte)(i==1?'*':' '));
++            for(int j=0;j<fields.length;j++){
++                byte[] value=rows[i][j].getBytes(charset);
++                for(int k=0;k<lengths[j];k++) b.put(k<value.length?value[k]:(byte)' ');
++            }
++        }
++        b.put((byte)26);return b.array();
++    }
++    private static void entry(ZipOutputStream z,String name,byte[] bytes) throws IOException {
++        z.putNextEntry(new ZipEntry(name));z.write(bytes);z.closeEntry();
++    }
++    private static Path archive(Path dir,String codec,boolean projected,boolean metadataOnly) throws IOException {
++        Path path=Files.createTempFile(dir,"boundary-", ".zip");
++        try(ZipOutputStream z=new ZipOutputStream(Files.newOutputStream(path))) {
++            for(String ext:Arrays.asList("shp","dbf","cpg","prj")) {
++                entry(z,"__MACOSX/._WB_GAD_ADM2."+ext,new byte[]{0,5,22,7});
++                entry(z,"nested/._WB_GAD_ADM2."+ext,new byte[]{0,5,22,7});
++                entry(z,"nested/__MACOSX/resource."+ext,new byte[]{0,5,22,7});
++            }
++            if(!metadataOnly){
++                String stem="nested/WB_GAD_ADM2";
++                entry(z,stem+".SHP",shapes());
++                entry(z,stem+".DBF",attributes("1252".equals(codec)?Charset.forName("windows-1252"):StandardCharsets.UTF_8));
++                entry(z,stem+".CPG",codec.getBytes(StandardCharsets.UTF_8));
++                entry(z,stem+".PRJ",(projected?"PROJCS[\"UTM\"]":"GEOGCS[\"GCS_WGS_1984\"]").getBytes(StandardCharsets.UTF_8));
++            }
++        }
++        return path;
++    }
++    private static void expectFailure(Path archive,String message){
++        try{BoundaryMap.load("Sri Lanka",archive.toString(),new ArrayList<String>());throw new AssertionError("Expected failure: "+message);}
++        catch(IllegalArgumentException e){check(e.getMessage().contains(message),"Clear diagnostic: "+e.getMessage());}
++    }
++    public static void main(String[] args) throws Exception {
++        Path dir=Files.createTempDirectory("surveye-boundary-test-");
++        try {
++            for(String codec:Arrays.asList("UTF-8-SIG","utf_8_sig","\uFEFFUTF-8","UTF8","65001","1252")){
++                BoundaryMap.MapGeometry g=BoundaryMap.load("LKA",archive(dir,codec,false,false).toString(),new ArrayList<String>());
++                check(g.admin2,"Admin-2 recognition");check(g.featureCount==2,"Ignore deleted and null geometries");
++                check(g.featureLabels.size()==g.encodedFeatures.size(),"One label per rendered feature");
++                check(g.featureLabels.get(0).equals("Colombo · Western"),"Do not shift names after null/deleted shapes");
++                check(g.featureLabels.get(1).equals("Gampáha < & > · Western"),"Unicode and special characters retained");
++                check(g.contains(79.1,6.1),"Outer interior");check(!g.contains(79.5,6.5),"Polygon hole remains outside");
++                check(g.contains(79.4,6.5),"Hole edge counts as boundary");check(g.contains(81.5,8.5),"Disjoint island");
++                check(!g.contains(80.5,7.5),"Between polygons is outside");check(!g.contains(Double.NaN,7),"Invalid point rejected");
++                check(!g.contains(70.5,.5),"Deleted DBF record excluded");
++            }
++            expectFailure(archive(dir,"made-up-codec",false,false),"Unsupported DBF code page");
++            expectFailure(archive(dir,"UTF-8-SIG",true,false),"Projected shapefiles are not supported");
++            expectFailure(archive(dir,"UTF-8-SIG",false,true),"matching .shp and .dbf");
++            BoundaryMap.MapGeometry bundled=BoundaryMap.load("Sri Lanka",null,new ArrayList<String>());
++            check(bundled.featureLabels.size()==bundled.encodedFeatures.size(),"Bundled outline label alignment");
++            check(!bundled.admin2,"Bundled outline is not misrepresented as Admin-2");
++            System.out.println("PASS boundary archive regressions ("+assertions+" assertions): Mac metadata, UTF-8-SIG, names, null/deleted rows, holes, islands, errors");
++        } finally {
++            try(java.util.stream.Stream<Path> paths=Files.list(dir)){for(Path p:(Iterable<Path>)paths::iterator)Files.deleteIfExists(p);}
++            Files.deleteIfExists(dir);
++        }
++    }
++}
+--- a/tests/OfficialBoundaryMatrix.java
++++ b/tests/OfficialBoundaryMatrix.java
+@@ -0,0 +1,30 @@
++import java.util.ArrayList;
++import java.util.List;
++
++/** Opt-in integration test against the supplied real World Bank archive (not bundled). */
++public final class OfficialBoundaryMatrix {
++    private static final String[] COUNTRIES = {"Sri Lanka", "Nepal", "Pakistan", "Australia", "Fiji", "France", "Brazil", "United States of America"};
++    // Independently counted from NAM_0/ISO_A3/ISO_A2/WB_A3 in the supplied DBF using pyshp.
++    // Australia includes Ashmore and Cartier; France includes Clipperton, as coded by this archive.
++    private static final int[] EXPECTED = {25, 77, 138, 566, 15, 107, 5506, 3144};
++    public static void main(String[] args) {
++        if (args.length != 1) throw new IllegalArgumentException("Usage: OfficialBoundaryMatrix boundary-archive.zip");
++        for (int i = 0; i < COUNTRIES.length; i++) {
++            long start = System.nanoTime();
++            List<String> warnings = new ArrayList<String>();
++            BoundaryMap.MapGeometry g = BoundaryMap.load(COUNTRIES[i], args[0], warnings);
++            if (!g.admin2 || g.featureCount != EXPECTED[i] || g.encodedFeatures.size() != EXPECTED[i] || g.featureLabels.size() != EXPECTED[i]) {
++                throw new AssertionError(COUNTRIES[i] + ": feature/name counts differ from independent DBF counts");
++            }
++            int rings = 0;
++            for (int j = 0; j < g.encodedFeatures.size(); j++) {
++                rings += g.encodedFeatures.get(j).size();
++                if (g.featureLabels.get(j).trim().isEmpty()) throw new AssertionError("Unnamed feature in " + COUNTRIES[i]);
++            }
++            if (!(g.minLon < g.maxLon && g.minLat < g.maxLat)) throw new AssertionError("Invalid extent");
++            if (COUNTRIES[i].equals("Fiji") && g.maxLon - g.minLon > 50) throw new AssertionError("Fiji wraps around the entire world");
++            System.out.printf(java.util.Locale.ROOT, "PASS %s | features=%d | rings=%d | lon=[%.5f,%.5f] | lat=[%.5f,%.5f] | load=%.3fs | warnings=%s%n",
++                COUNTRIES[i], g.featureCount, rings, g.minLon, g.maxLon, g.minLat, g.maxLat, (System.nanoTime()-start)/1e9, warnings);
++        }
++    }
++}
+--- a/tests/browser_layout_variants.py
++++ b/tests/browser_layout_variants.py
+@@ -0,0 +1,37 @@
++#!/usr/bin/env python3
++"""Optional real-browser layout smoke for English themes and generated Arabic/Urdu UI.
++Requires playwright and Chromium. Inputs are existing generated synthetic HTML.
++"""
++from pathlib import Path
++import argparse,json,shutil
++from playwright.sync_api import sync_playwright
++p=argparse.ArgumentParser(description=__doc__)
++p.add_argument('--root',type=Path,default=Path(__file__).resolve().parents[1])
++p.add_argument('--out',type=Path,default=Path('build/layout-variants'))
++p.add_argument('--chromium',default=shutil.which('chromium'))
++a=p.parse_args();a.out.mkdir(parents=True,exist_ok=True)
++checks=[];errors=[]
++with sync_playwright() as pw:
++ b=pw.chromium.launch(executable_path=a.chromium,headless=True,args=['--no-sandbox','--disable-dev-shm-usage'])
++ for language,path in [('english','examples/surveye_admin2_review.html'),('arabic','build/review-arabic.html'),('urdu','build/review-urdu.html')]:
++  page=b.new_page(viewport={'width':1440,'height':1050},reduced_motion='reduce')
++  page.route('**/*',lambda r:r.abort());page.on('pageerror',lambda e:errors.append(str(e)))
++  page.set_content((a.root/path).read_text(encoding='utf-8'),wait_until='load')
++  assert page.locator('html').get_attribute('dir')==('ltr' if language=='english' else 'rtl')
++  checks.append(f'{language}: correct document direction')
++  for theme in (['worldbank','dark','clean','forest'] if language=='english' else ['worldbank']):
++   page.locator('body').evaluate('(e,theme)=>e.dataset.theme=theme',theme)
++   for width in [390,768,1440]:
++    page.set_viewport_size({'width':width,'height':1050});page.wait_for_timeout(100)
++    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth+1'),f'{language} {theme} {width} overflow'
++    page.locator('#controls-toggle').click();page.wait_for_timeout(60)
++    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth+1'),f'{language} {theme} expanded {width} overflow'
++    page.locator('#controls-toggle').click()
++    checks.append(f'{language}/{theme}: {width}px, filters closed and open, no page overflow')
++   page.screenshot(path=str(a.out/f'{language}-{theme}.png'))
++  page.close()
++ assert not errors,errors
++ b.close()
++result={'result':'PASS','checks':len(checks),'assertions':checks,'page_errors':errors,'method':'Real Chromium set_content; current generated HTML, production CSS and libraries; no live tile requests.'}
++(a.out/'layout-results.json').write_text(json.dumps(result,indent=2)+'\n')
++print(f'PASS {len(checks)} layout checks; no page errors')
+--- a/tests/browser_review.py
++++ b/tests/browser_review.py
+@@ -0,0 +1,221 @@
++#!/usr/bin/env python3
++"""Opt-in real Chromium QA. Uses actual embedded Chart.js/Leaflet, never stubs.
++
++Usage: python tests/browser_review.py examples/surveye_admin2_review.html --out build/browser-qa
++Requires the development-only Python playwright package and a Chromium binary.
++HTML is loaded with set_content; no browser policy or file-access policy is changed.
++HTTP(S) requests are aborted deliberately to exercise offline boundary rendering.
++"""
++from __future__ import annotations
++import argparse, csv, io, json, math, shutil, statistics, time
++from pathlib import Path
++from playwright.sync_api import sync_playwright
++
++parser = argparse.ArgumentParser(description=__doc__)
++parser.add_argument('html', type=Path)
++parser.add_argument('--out', type=Path, default=Path('build/browser-qa'))
++parser.add_argument('--chromium', default=shutil.which('chromium') or shutil.which('google-chrome'))
++parser.add_argument('--diagnostics-html', type=Path)
++args = parser.parse_args()
++if not args.chromium:
++    raise SystemExit('Specify an installed Chromium executable with --chromium.')
++args.out.mkdir(parents=True, exist_ok=True)
++checks: list[str] = []
++errors: list[str] = []
++started = time.monotonic()
++def check(value, label):
++    if not value:
++        raise AssertionError(label)
++    checks.append(label)
++    print("PASS "+label, flush=True)
++def near(a, b):
++    return math.isclose(a, b, rel_tol=1e-10, abs_tol=1e-8)
++def stats_cells(panel):
++    return panel.locator('.stats-table th').evaluate_all('(rs)=>Object.fromEntries(rs.map(r=>[r.textContent.trim(),r.nextElementSibling.textContent.trim()]))')
++def open_map(page):
++    page.evaluate('() => {L.Map.addInitHook(function(){window.__qaMap=this});}')
++    page.locator('#spatial-map').evaluate('(e)=>e.open=true')
++    # Poll through CDP; wait_for_function uses eval, forbidden by the report CSP.
++    for _ in range(25):
++        if page.evaluate('!!window.__qaMap && document.querySelector("#leaflet-map").dataset.boundaryReady === "true"'):
++            return
++        page.wait_for_timeout(80)
++    raise AssertionError("Map did not initialize")
++def set_filter(page, values):
++    page.evaluate('(f)=>SurvEyeDashboard.setFilters(f)', values)
++    page.wait_for_timeout(60)
++def scroll_anchor(page, locator, offset=215):
++    locator.evaluate('(e,offset)=>window.scrollTo(0,window.scrollY+e.getBoundingClientRect().top-offset)', offset)
++    page.wait_for_timeout(120)
++
++with sync_playwright() as pw:
++    browser = pw.chromium.launch(executable_path=args.chromium, headless=True, args=['--no-sandbox','--disable-dev-shm-usage'])
++    context = browser.new_context(viewport={'width':1440,'height':1050}, device_scale_factor=1, accept_downloads=True)
++    context.route('**/*', lambda route: route.abort() if route.request.url.startswith(('http://','https://')) else route.continue_())
++    page = context.new_page()
++    page.set_default_timeout(10000)
++    page.on('pageerror', lambda err: errors.append(str(err)))
++    page.set_content(args.html.read_text(encoding='utf-8'), wait_until='load')
++    page.wait_for_timeout(900)
++    data = page.evaluate('DATA')
++    source_root=Path(__file__).resolve().parents[1]
++    actual_html=args.html.read_text(encoding='utf-8')
++    check((source_root/'src/resources/dashboard.js').read_text(encoding='utf-8').strip() in actual_html, 'Preview embeds current production JavaScript byte for byte')
++    check((source_root/'src/resources/dashboard.css').read_text(encoding='utf-8').strip() in actual_html, 'Preview embeds current production CSS byte for byte')
++    check(len(data)==240, 'Fixture contains 240 explicitly synthetic interviews')
++    check(page.locator('canvas.chart').count()==117, 'All 117 original panels and their canvas nodes retained')
++    check(page.locator('details.story').count()==6, 'All six original sections retained')
++    check(page.evaluate('Chart.defaults.animation.duration')==800, 'Default animation duration remains 800ms')
++    check(page.evaluate('document.querySelectorAll("[id]").length===new Set([...document.querySelectorAll("[id]")].map(e=>e.id)).size'), 'Generated DOM ids are unique')
++    # Independently compute the affirmative weighted share, not the modal response.
++    yes = sum(r['_w'] for r in data if str(r.get('female_owner'))=='1')
++    valid = sum(r['_w'] for r in data if str(r.get('female_owner')) in ['1','0'])
++    h = page.evaluate('SurvEyeDashboard.highlight("female_owner")')
++    check('Yes' in h['detail'] and h['value']==f'{yes/valid*100:.1f}%', 'Binary highlight stays affirmative even when No is the modal response')
++    page.screenshot(path=str(args.out/'overview-light.png'))
++    open_map(page)
++    check(page.evaluate('CONFIG.map.boundary.length===25 && CONFIG.map.boundaryLabels.length===25'), 'Real archive embeds 25 named Sri Lankan district features')
++    check(page.evaluate('Object.values(__qaMap._layers).filter(l=>l instanceof L.Polygon).length')==25, 'Leaflet renders 25 actual interactive district polygons')
++    check(page.locator('.surveye-point').count()==240, 'Points mode renders 240 separate accessible SVG markers, not clusters')
++    check(page.locator('#map-missing').inner_text()=='0' and page.locator('#map-outside').inner_text()=='0', 'Synthetic preview has no missing or outside-boundary points')
++    page.wait_for_timeout(400)
++    check(page.locator('#map-tile-status').is_visible(), 'Failed external tiles expose notice while embedded map remains visible')
++    legend = page.locator('#map-legend').evaluate('(e)=>[...e.children].map(n=>[n.textContent,getComputedStyle(n.querySelector("i")).backgroundColor])')
++    page.locator('#map-fit-country').click()
++    country_bounds = page.evaluate('__qaMap.getBounds().toBBoxString()')
++    scroll_anchor(page,page.locator('#spatial-map'))
++    page.screenshot(path=str(args.out/'admin2-map-light.png'))
++    page.evaluate('() => {const p=Object.values(__qaMap._layers).find(l=>l instanceof L.Polygon);p.openTooltip(p.getBounds().getCenter());}')
++    check(page.locator('.boundary-tooltip').count()==1 and len(page.locator('.boundary-tooltip').inner_text())>3, 'District name tooltip renders safely as text')
++    page.evaluate('() => {__qaMap.eachLayer(l=>{if(l instanceof L.Polygon)l.closeTooltip()});}')
++    point = page.locator('.surveye-point').first
++    check(point.get_attribute('role')=='button' and point.get_attribute('tabindex')=='0', 'Interview point has keyboard button semantics')
++    point.focus(); point.press('Enter')
++    check(page.locator('.leaflet-popup').is_visible(), 'Enter on interview point opens coordinate popup')
++    page.evaluate('() => {__qaMap.closePopup();}')
++    page.locator('#controls-toggle').click()
++    page.locator('.chip[data-filter="region"][data-value="01"]').click()
++    western=[r for r in data if r['region']=='01']
++    check(page.evaluate('SurvEyeDashboard.rows().length')==len(western), 'Filter 01 selects Western interviews only')
++    check(page.locator('#map-count').inner_text()==str(len(western)), 'Map count follows clicked filter')
++    check(page.locator('.surveye-point').count()==len(western), 'Map rendered markers follow clicked filter')
++    check(page.locator('#map-legend').evaluate('(e)=>[...e.children].map(n=>[n.textContent,getComputedStyle(n.querySelector("i")).backgroundColor])')==legend, 'Region colors and legend stay stable under filtering')
++    set_filter(page,{'region':['1']})
++    central=[r for r in data if r['region']=='1']
++    check(page.evaluate('SurvEyeDashboard.rows().length')==len(central), 'Code 1 remains distinct from code 01')
++    check(page.evaluate('SurvEyeDashboard.rows().every(r=>r.region==="1")'), 'Exact category identity preserved, not numeric coercion')
++    panel=page.locator('.panel').filter(has=page.locator('canvas[data-variable="sales"]'))
++    panel.evaluate('(e)=>e.closest("details.story").open=true')
++    scroll_anchor(page,panel,350)
++    panel.locator('[data-panel-view="stats"]').click()
++    sales=[r['sales'] for r in central if isinstance(r.get('sales'),(int,float))]
++    check(stats_cells(panel)['Valid raw n']==str(len(sales)), 'Visible Stats raw n agrees with independent filtered values')
++    page.locator('#weight-toggle').uncheck()
++    median=statistics.median(sales)
++    check(near(page.evaluate('SurvEyeDashboard.summary("sales").number'),median), 'Unweighted median matches Python independent calculation')
++    fmt=page.evaluate('(v)=>SurvEyeDashboard.metricFmt("sales",v,2)',median)
++    check(stats_cells(panel)['Median']==fmt, 'Open Stats updates after weight toggle')
++    sd=statistics.stdev(sales)
++    check(stats_cells(panel)['Mean + 3 SD']==page.evaluate('(v)=>SurvEyeDashboard.metricFmt("sales",v,2)',statistics.mean(sales)+3*sd), 'Mean + 3 sample SD agrees with independent calculation')
++    page.locator('#usd-toggle').check()
++    check(near(page.evaluate('SurvEyeDashboard.summary("sales").number'),median/300), 'USD presentation divides once by explicit demo rate')
++    check(stats_cells(panel)['Median']==page.evaluate('(v)=>SurvEyeDashboard.metricFmt("sales",v,2)',median/300), 'Open Stats updates after currency toggle')
++    page.locator('#weight-toggle').check()
++    check(panel.locator('.stats-note').count()==1, 'Weighted Stats explanation restored')
++    set_filter(page,{'region':['01']})
++    check(stats_cells(panel)['Valid raw n']==str(sum(isinstance(r.get('sales'),(float,int)) for r in western)), 'Already-open Stats refreshes immediately on another filter')
++    panel.locator('[data-panel-view="distribution"]').click()
++    set_filter(page,{'region':['1']})
++    page.evaluate('() => {const c=document.querySelector("canvas[data-variable=sales]");SurvEyeDashboard.ensureBuilt(c);}')
++    counts=page.evaluate('() => {const c=Chart.getChart(document.querySelector("canvas[data-variable=sales]"));return c.data.datasets[0].data}')
++    check(sum(b['raw'] for b in counts)==len(sales), 'Actual Chart.js histogram raw-bin counts equal valid filtered sample')
++    check(near(sum(b['y'] for b in counts),sum(r['_w'] for r in central if isinstance(r.get('sales'),(int,float)))), 'Actual histogram weighted-bin total agrees with independent calculation')
++    # Browser downloads, not an anchor stub. Keep underscore survey columns and raw local currency.
++    page.evaluate('() => {META._income={label:"Income",kind:"continuous"};DATA.forEach((r,i)=>r._income=1000+i);}')
++    with page.expect_download() as event:
++        page.locator('#download-data').click()
++    download=event.value; dest=args.out/'filtered-data.csv'; download.save_as(str(dest))
++    csv_rows=list(csv.DictReader(io.StringIO(dest.read_text(encoding='utf-8-sig'))))
++    check(len(csv_rows)==len(central), 'Browser CSV download contains exactly filtered interviews')
++    check('_income' in csv_rows[0] and '_w' not in csv_rows[0] and '_lat' not in csv_rows[0], 'CSV keeps ordinary underscore variables but removes runtime helpers')
++    check(all(r['region']=='Central' for r in csv_rows), 'CSV uses correct exact-code category label')
++    check(near(float(csv_rows[0]['sales']),central[0]['sales']), 'USD display does not alter raw CSV currency values')
++    # Search is a view operation; it must not change the analytic sample.
++    page.locator('#indicator-search').fill('sales');page.wait_for_timeout(200)
++    check(page.evaluate('SurvEyeDashboard.rows().length')==len(central), 'Indicator search does not change selected interviews')
++    check(page.evaluate('[...document.querySelectorAll("details.story .panel")].every(e=>e.classList.contains("hidden")!==e.dataset.search.includes("sales"))'), 'Search hides only nonmatching panels in original section grids')
++    view=page.evaluate('SurvEyeDashboard.viewStateObject()')
++    check(view['f']['region']==['1'] and view['q']=='sales' and view['u']==1, 'Shareable view preserves exact filter, search, and currency mode')
++    page.locator('#indicator-search').fill('not-a-real-variable');page.wait_for_timeout(100)
++    check(page.locator('#no-results').is_visible(), 'Empty indicator search has a visible explanation')
++    page.locator('#reset').click()
++    check(page.evaluate('SurvEyeDashboard.rows().length')==240 and page.locator('.panel.hidden').count()==0, 'Reset restores all observations and chart panels')
++    set_filter(page,{'region':['unobserved-code']})
++    check(page.locator('#map-count').inner_text()=='0' and page.locator('.surveye-point').count()==0, 'Empty subset removes stale map markers')
++    check(page.evaluate('__qaMap.getBounds().toBBoxString()')==country_bounds, 'Empty map returns to country extent, not old sample extent')
++    check(page.locator('.highlight[data-variable="female_owner"] .highlight-value').inner_text()=='n/a', 'Empty binary highlight reports n/a, not zero percent')
++    page.locator('#reset').click()
++    page.locator('#usd-toggle').uncheck()
++    page.locator('#controls-toggle').click()
++    # Repeated beforeprint events should not overwrite the saved disclosure state.
++    before=page.evaluate('() => {const ds=[...document.querySelectorAll("details.story")];ds.forEach((e,i)=>e.open=i%2===0);document.querySelector("#spatial-map").open=false;return ds.map(e=>e.open)}')
++    page.evaluate('() => {dispatchEvent(new Event("beforeprint"));dispatchEvent(new Event("beforeprint"));}')
++    page.wait_for_timeout(300)
++    check(page.evaluate('Object.keys(Chart.instances).length')==117, 'All 117 panels instantiate actual Chart.js charts for print')
++    check(page.evaluate('[...document.querySelectorAll("canvas.chart")].every(c=>c.width>0&&c.height>0)'), 'Every chart has positive rendered canvas dimensions')
++    check(page.evaluate('Object.values(Chart.instances).every(c=>Number.isFinite(c.width)&&Number.isFinite(c.height))'), 'No nonfinite Chart.js rendering dimensions')
++    page.evaluate('() => {dispatchEvent(new Event("afterprint"));}')
++    check(page.evaluate('[...document.querySelectorAll("details.story")].map(e=>e.open)')==before, 'Repeated print events restore previous section disclosures')
++    check(not page.locator('#spatial-map').evaluate('(e)=>e.open'), 'Print restoration closes previously closed map')
++    page.locator('#expand-all').click()
++    first=page.locator('details.story').first
++    scroll_anchor(page,first)
++    page.wait_for_timeout(900)
++    page.screenshot(path=str(args.out/'charts-light.png'))
++    # Chart image export includes a real raster, tested by signature/dimensions below.
++    female=page.locator('.panel').filter(has=page.locator('canvas[data-variable="registered"]'))
++    scroll_anchor(page,female,255)
++    with page.expect_download() as event:
++        female.locator('[data-export-chart]').click()
++    png=args.out/'exported-chart.png';event.value.save_as(str(png))
++    import struct
++    header=png.read_bytes()[:24]
++    width,height=struct.unpack('>II',header[16:24])
++    check(header[:8]==b'\x89PNG\r\n\x1a\n' and width>=560 and height>100, 'Chart PNG export is a nonempty raster with title/legend area')
++    female.locator('.panel-customize').click()
++    page.locator('.chart-popover .popover-text').fill('Registration status — review title')
++    page.locator('.chart-popover .popover-text').press('Enter')
++    check(female.locator('.panel-title').inner_text()=='Registration status — review title', 'Per-chart title customization still works')
++    page.keyboard.press('Escape')
++    page.locator('#theme-toggle').click()
++    scroll_anchor(page,first)
++    page.wait_for_timeout(900)
++    page.screenshot(path=str(args.out/'charts-dark.png'))
++    check(page.evaluate('document.body.dataset.theme')=='dark', 'Theme control switches to dark rendering')
++    page.locator('#theme-toggle').click()
++    # Actual responsive layout, not jsdom. Tables and nav may scroll inside their own containers.
++    for w in [320,390,600,768,1024,1440,1920]:
++        page.set_viewport_size({'width':w,'height':900});page.evaluate('window.scrollTo(0,0)');page.wait_for_timeout(140)
++        check(page.evaluate('document.documentElement.scrollWidth<=innerWidth+1'), f'No page-level horizontal overflow at {w}px')
++        page.locator('#controls-toggle').click()
++        page.wait_for_timeout(60)
++        check(page.evaluate('document.documentElement.scrollWidth<=innerWidth+1'), f'Expanded filters fit within page at {w}px')
++        page.locator('#controls-toggle').click()
++        if w==390:
++            page.screenshot(path=str(args.out/'mobile-light.png'))
++            scroll_anchor(page,first,175);page.wait_for_timeout(250)
++            page.screenshot(path=str(args.out/'mobile-charts.png'))
++    page.emulate_media(reduced_motion='reduce')
++    page.set_content(args.html.read_text(encoding='utf-8'), wait_until='load')
++    check(page.evaluate('Chart.defaults.animation.duration')==0, 'Reduced-motion preference disables animations')
++    if args.diagnostics_html:
++        page.set_content(args.diagnostics_html.read_text(encoding='utf-8'), wait_until='load');open_map(page)
++        check(page.locator('#map-missing').inner_text()=='2' and page.locator('#map-outside').inner_text()=='2', 'Separate edge-case fixture exposes two missing and two outside coordinates')
++        for code, missing, outside in [('01','1','0'),('1','1','0'),('03','0','1'),('04','0','1')]:
++            set_filter(page,{'region':[code]})
++            check(page.locator('#map-missing').inner_text()==missing and page.locator('#map-outside').inner_text()==outside, f'Missing/outside footer follows region {code}, not full-sample totals')
++    check(not errors, f'No uncaught browser JavaScript exceptions ({len(errors)} recorded)')
++    browser.close()
++report={'result':'PASS','checks':len(checks),'duration_seconds':round(time.monotonic()-started,2),'assertions':checks,'page_errors':errors,'browser':args.chromium,'method':'Real Chromium, page.set_content, embedded production Chart.js and Leaflet; HTTP(S) blocked deliberately.','limits':['No licensed Stata runtime or Windows network drive test.','Live basemap tile service availability not tested.','No Safari/Firefox/Edge browser test.','LocalStorage persistence across real file openings not tested on the opaque in-memory origin.','No claim that every country or every real Survey Solutions instrument has been tested.']}
++(args.out/'browser-results.json').write_text(json.dumps(report,indent=2)+'\n')
++print(f'PASS real Chromium: {len(checks)} assertions in {report["duration_seconds"]} seconds; zero page errors.')
+--- a/tests/check_package.sh
++++ b/tests/check_package.sh
+@@ -145,9 +145,25 @@
+   noto-sans-arabic-arabic-700-normal.woff2 \
+   NOTO-SANS-ARABIC-LICENSE.txt; do
+   unzip -p "$GENERIC_JAR" "resources/$source" > "$RESOURCE_BUILD/$source"
+-  if ! cmp -s "$ROOT/src/resources/$source" "$RESOURCE_BUILD/$source"; then
+-    echo "FAIL: JAR resource is stale: resources/$source" >&2
+-    exit 1
++  if [ -f "$ROOT/src/resources/$source" ]; then
++    if ! cmp -s "$ROOT/src/resources/$source" "$RESOURCE_BUILD/$source"; then
++      echo "FAIL: JAR resource is stale: resources/$source" >&2
++      exit 1
++    fi
++  else
++    # Source-only review bundles keep these licensed assets embedded in the JAR.
++    # Verify exact original bytes against a maintained checksum, not mere presence.
++    case "$source" in
++      noto-sans-arabic-arabic-400-normal.woff2|noto-sans-arabic-arabic-700-normal.woff2)
++        expected=$(awk -v name="$source" '$2 == name { print $1 }' "$ROOT/src/resources/embedded-assets.sha256")
++        actual=$(sha256sum "$RESOURCE_BUILD/$source" | awk '{ print $1 }')
++        if [ -z "$expected" ] || [ "$actual" != "$expected" ]; then
++          echo "FAIL: embedded asset checksum differs: $source" >&2
++          exit 1
++        fi
++        ;;
++      *) echo "FAIL: missing maintained source asset: $source" >&2; exit 1 ;;
++    esac
+   fi
+ done
+ 
+--- a/tests/generate_admin2_review.py
++++ b/tests/generate_admin2_review.py
+@@ -0,0 +1,55 @@
++#!/usr/bin/env python3
++"""Regenerate the synthetic Admin-2 preview using a user-supplied World Bank ZIP.
++
++The geometry archive is not redistributed. Survey inputs are synthetic committed
++CSV fixtures. Python is used only by this optional development helper, not by
++SurvEye's Stata/Java runtime. No GIS package is required for this helper.
++"""
++from __future__ import annotations
++import argparse, csv, shutil, subprocess
++from pathlib import Path
++
++def main() -> None:
++    p = argparse.ArgumentParser(description=__doc__)
++    p.add_argument('boundaries', type=Path)
++    p.add_argument('--output', type=Path, default=Path('examples/surveye_admin2_review.html'))
++    p.add_argument('--replace', action='store_true')
++    p.add_argument('--diagnostics', action='store_true', help='Use synthetic invalid/outside coordinate cases for browser regression QA.')
++    p.add_argument('--uilanguage', choices=['english','arabic','urdu'], default='english')
++    p.add_argument('--theme', choices=['worldbank','dark','clean','forest'], default='worldbank')
++    args = p.parse_args()
++    root = Path(__file__).resolve().parents[1]
++    archive = args.boundaries.expanduser().resolve()
++    output = args.output if args.output.is_absolute() else root / args.output
++    output = output.resolve()
++    if not archive.is_file():
++        p.error(f'Boundary ZIP does not exist: {archive}')
++    if '\t' in str(archive) or '\n' in str(archive) or '\t' in str(output) or '\n' in str(output):
++        p.error('Paths must not contain tabs or line breaks.')
++    if output.exists() and not args.replace:
++        p.error(f'Output exists; use --replace to regenerate: {output}')
++    java = shutil.which('java')
++    if not java or not (root/'surveye.jar').is_file():
++        p.error('Build surveye.jar first and ensure Java is available.')
++    work = root/'build'; work.mkdir(exist_ok=True)
++    cfg = (root/'tests/review_admin2_config.tsv.in').read_text(encoding='utf-8')
++    cfg = cfg.replace('@BOUNDARY_ZIP@', str(archive))
++    settings = dict(line.split('\t',1) for line in cfg.splitlines() if '\t' in line)
++    settings.update(output=str(output), uilanguage=args.uilanguage, theme=args.theme)
++    if args.diagnostics:
++        with (root/'tests/review_admin2_data.csv').open(encoding='utf-8',newline='') as f:
++            rows=list(csv.DictReader(f))
++        for code, lat, lon in [('01','',''),('1','999','12'),('03','27.7172','85.3240'),('04','0','0')]:
++            row=next(r for r in rows if r['region']==code)
++            row.update(latitude=lat,longitude=lon)
++        path=work/'review-coordinate-edge-cases.csv'
++        with path.open('w',encoding='utf-8',newline='') as f:
++            writer=csv.DictWriter(f,fieldnames=list(rows[0]))
++            writer.writeheader();writer.writerows(rows)
++        settings['data']=str(path)
++    config=work/'review-admin2-generated-config.tsv'
++    config.write_text(''.join(f'{k}\t{v}\n' for k,v in settings.items()),encoding='utf-8')
++    subprocess.run([java,'-jar','surveye.jar','--config',str(config)],cwd=root,check=True)
++
++if __name__=='__main__':
++    main()
+--- a/tests/package.json
++++ b/tests/package.json
+@@ -1,7 +1,7 @@
+ {
+   "name": "surveye-browser-qa",
+   "private": true,
+-  "version": "2.3.1",
++  "version": "2.3.2",
+   "description": "Responsive browser checks for generated SurvEye HTML files",
+   "engines": {
+     "node": ">=18"
+--- a/tests/run_all.sh
++++ b/tests/run_all.sh
+@@ -10,6 +10,7 @@
+ node "$ROOT/tests/test_statistics.js"
+ sh "$ROOT/tests/run_parser_tests.sh"
+ sh "$ROOT/tests/run_engine_smoke.sh"
++sh "$ROOT/tests/run_boundary_tests.sh"
+ sh "$ROOT/tests/run_surveycto_tests.sh"
+ sh "$ROOT/tests/test_appearance.sh"
+ echo "PASS portable release gate (optional DOM, browser, and licensed-Stata QA are separate)"
+--- a/tests/run_boundary_tests.sh
++++ b/tests/run_boundary_tests.sh
+@@ -0,0 +1,7 @@
++#!/usr/bin/env sh
++set -eu
++ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
++DEST="$ROOT/build/boundary-tests"
++mkdir -p "$DEST"
++javac --release 8 -encoding UTF-8 -cp "$ROOT/surveye.jar" -d "$DEST" "$ROOT/tests/BoundaryArchiveRegressionTest.java"
++java -cp "$ROOT/surveye.jar:$DEST" BoundaryArchiveRegressionTest
+--- a/tests/test_dashboard_dom.js
++++ b/tests/test_dashboard_dom.js
+@@ -52,7 +52,7 @@
+   function control() { const container = document.createElement("div"), toggle = document.createElement("a"); toggle.className = "leaflet-control-layers-toggle"; container.appendChild(toggle); return { addTo() { return this; }, getContainer() { return container; } }; }
+   function latLng(lat, lng) { if (Array.isArray(lat)) return { lat: lat[0], lng: lat[1] }; return { lat, lng }; }
+   const L = {
+-    tileLayer: () => ({ addTo() { return this; } }), layerGroup: group, circleMarker: marker,
++    tileLayer: () => ({ addTo() { return this; }, on() { return this; } }), layerGroup: group, circleMarker: marker,
+     polyline: marker, svg: () => ({}), latLng, point: (x, y) => ({ x, y }),
+     latLngBounds(points) { return { getCenter: () => latLng(points[0]), toBBoxString: () => "stubbed-map-bounds" }; },
+     control: { zoom: control, attribution: control, scale: control, layers: control },
+--- a/tests/test_statistics.js
++++ b/tests/test_statistics.js
+@@ -943,3 +943,15 @@
+ equal(filterChip.pressed, "false", "dashboard clear reconciles filter chip");
+ 
+ console.log("PASS Stata-compatible dashboard statistics");
++
++// 2.3.2: an affirmative binary KPI must not flip with the majority.
++config.weighted=false; stats.setWeightsEnabled(false);
++context.META.binary_review={kind:"yesno",labels:{"1":"Yes","2":"No"},order:["1","2"],affirmative:["1"],negative:["2"]};
++const binaryReviewRows=[{binary_review:"1",_w:1},{binary_review:"2",_w:3},{binary_review:"2",_w:6}];
++equal(stats.highlight("binary_review",binaryReviewRows).value,"33.3%","binary highlight remains affirmative for a minority");
++equal(stats.highlight("binary_review",binaryReviewRows.slice(1)).value,"0%","all-no selection is zero yes, not 100% no");
++equal(stats.highlight("binary_review",[]).value,"n/a","empty binary highlight is unavailable");
++config.weighted=true;stats.setWeightsEnabled(true);
++equal(stats.highlight("binary_review",binaryReviewRows).value,"10%","binary highlight respects weights");
++config.weighted=false;stats.setWeightsEnabled(false);
++console.log("PASS stable affirmative highlights (unweighted, weighted, all-no, empty)");

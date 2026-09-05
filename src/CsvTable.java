@@ -2,12 +2,12 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PushbackReader;
 import java.io.Reader;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -21,14 +21,16 @@ final class CsvTable {
     final List<String> warnings = new ArrayList<String>();
     private final Map<String, Integer> columns = new LinkedHashMap<String, Integer>();
     char delimiter;
+    private static final int INTERN_CAP = 262144;
 
     static CsvTable read(String filename) throws IOException {
         if (filename == null || filename.trim().isEmpty()) throw new IOException("No data file was supplied.");
         Path path = Paths.get(filename);
         if (!Files.isRegularFile(path)) throw new IOException("Data file not found: " + path.toAbsolutePath());
         CsvTable table = new CsvTable();
+        Map<String, String> values = new HashMap<String, String>(4096);
         table.delimiter = detectDelimiter(path);
-        Reader base = Files.newBufferedReader(path, StandardCharsets.UTF_8);
+        Reader base = Util.lenientReader(path);
         try {
             PushbackReader reader = new PushbackReader(new BufferedReader(base, 65536), 2);
             List<String> record;
@@ -51,7 +53,9 @@ final class CsvTable {
                     }
                     continue;
                 }
-                if (isBlank(record)) continue;
+                // An empty list marks a physically blank line. Delimiters or
+                // quotes define a real record even when every field is empty.
+                if (record.isEmpty()) continue;
                 if (record.size() != table.headers.size()) {
                     if (table.warnings.size() < 20) {
                         table.warnings.add("CSV row " + rowNumber + " has " + record.size() + " fields; expected " + table.headers.size() + ".");
@@ -59,7 +63,15 @@ final class CsvTable {
                 }
                 String[] row = new String[table.headers.size()];
                 Arrays.fill(row, "");
-                for (int i = 0; i < Math.min(row.length, record.size()); i++) row[i] = record.get(i);
+                // Reuse common codes/labels without interning unbounded
+                // respondent text in the JVM's global string pool.
+                for (int i = 0; i < Math.min(row.length, record.size()); i++) {
+                    String value = record.get(i) == null ? "" : record.get(i);
+                    String cached = values.get(value);
+                    if (cached != null) value = cached;
+                    else if (values.size() < INTERN_CAP) values.put(value, value);
+                    row[i] = value;
+                }
                 table.rows.add(row);
             }
         } finally {
@@ -69,14 +81,8 @@ final class CsvTable {
         return table;
     }
 
-    private static boolean isBlank(List<String> record) {
-        if (record.isEmpty()) return true;
-        for (String value : record) if (value != null && !value.trim().isEmpty()) return false;
-        return true;
-    }
-
     private static char detectDelimiter(Path path) throws IOException {
-        BufferedReader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8);
+        BufferedReader reader = Util.lenientReader(path);
         try {
             StringBuilder sample = new StringBuilder();
             boolean quoted = false;
@@ -116,6 +122,7 @@ final class CsvTable {
         StringBuilder field = new StringBuilder();
         boolean inQuotes = false;
         boolean any = false;
+        boolean explicitRecord = false;
         int c;
         while ((c = reader.read()) >= 0) {
             any = true;
@@ -131,21 +138,26 @@ final class CsvTable {
                 } else field.append(ch);
             } else if (ch == '"' && field.length() == 0) {
                 inQuotes = true;
+                explicitRecord = true;
             } else if (ch == delimiter) {
+                explicitRecord = true;
                 fields.add(field.toString());
                 field.setLength(0);
             } else if (ch == '\n') {
+                if (!explicitRecord && fields.isEmpty() && field.toString().trim().isEmpty()) return fields;
                 fields.add(field.toString());
                 return fields;
             } else if (ch == '\r') {
                 int next = reader.read();
                 if (next >= 0 && next != '\n') reader.unread(next);
+                if (!explicitRecord && fields.isEmpty() && field.toString().trim().isEmpty()) return fields;
                 fields.add(field.toString());
                 return fields;
             } else field.append(ch);
         }
         if (inQuotes) throw new IOException("CSV ended inside a quoted field.");
         if (!any && fields.isEmpty() && field.length() == 0) return null;
+        if (!explicitRecord && fields.isEmpty() && field.toString().trim().isEmpty()) return fields;
         fields.add(field.toString());
         return fields;
     }

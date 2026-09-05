@@ -1,0 +1,8 @@
+PASS Sri Lanka | features=25 | rings=92 | lon=[79.52164,81.87865] | lat=[5.92138,9.83504] | load=1.665s | warnings=[]
+PASS Nepal | features=77 | rings=78 | lon=[80.05847,88.20175] | lat=[26.34752,30.44659] | load=1.578s | warnings=[]
+PASS Pakistan | features=138 | rings=355 | lon=[60.87297,75.38140] | lat=[23.70327,36.91184] | load=1.560s | warnings=[]
+PASS Australia | features=566 | rings=3795 | lon=[112.92171,159.25493] | lat=[-54.77609,-9.22940] | load=1.652s | warnings=[]
+PASS Fiji | features=15 | rings=248 | lon=[176.90987,181.77039] | lat=[-21.04254,-12.46141] | load=1.579s | warnings=[Boundary crosses the antimeridian; longitudes were unwrapped around 179.4?.]
+PASS France | features=107 | rings=294 | lon=[-109.23423,55.83624] | lat=[-21.38856,51.08946] | load=1.549s | warnings=[]
+PASS Brazil | features=5506 | rings=7642 | lon=[-73.98269,-28.84904] | lat=[-33.75079,5.27000] | load=1.671s | warnings=[]
+PASS United States of America | features=3144 | rings=7184 | lon=[-187.55803,-66.94974] | lat=[18.91095,71.38944] | load=1.650s | warnings=[Boundary crosses the antimeridian; longitudes were unwrapped around -127.2?.]

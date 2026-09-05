@@ -1,7 +1,11 @@
 import java.io.ByteArrayOutputStream;
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -55,6 +59,23 @@ final class Util {
         int offset = bytes.length >= 3 && (bytes[0] & 0xff) == 0xef && (bytes[1] & 0xff) == 0xbb
                 && (bytes[2] & 0xff) == 0xbf ? 3 : 0;
         return new String(bytes, offset, bytes.length - offset, StandardCharsets.UTF_8);
+    }
+
+    /** Match the shipped UTF-8 reader when older exports contain invalid bytes. */
+    static BufferedReader lenientReader(Path path) throws IOException {
+        CharsetDecoder decoder = StandardCharsets.UTF_8.newDecoder()
+                .onMalformedInput(CodingErrorAction.REPLACE)
+                .onUnmappableCharacter(CodingErrorAction.REPLACE);
+        return new BufferedReader(new InputStreamReader(Files.newInputStream(path), decoder));
+    }
+
+    static List<String> lenientReadLines(Path path) throws IOException {
+        List<String> lines = new ArrayList<String>();
+        try (BufferedReader reader = lenientReader(path)) {
+            String line;
+            while ((line = reader.readLine()) != null) lines.add(line);
+        }
+        return lines;
     }
 
     static String readResource(String name) throws IOException {

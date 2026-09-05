@@ -46,6 +46,10 @@ public final class StataPlugin {
         String detail = error.getMessage();
         String message = "Unable to start the dashboard engine (" + error.getClass().getSimpleName()
                 + (detail == null || detail.trim().isEmpty() ? "" : ": " + detail.trim()) + ").";
+        if (error instanceof OutOfMemoryError) {
+            message += " The dataset is larger than Stata's Java heap allows. Raise it and restart Stata: "
+                    + "set java_heapmax 4g, permanently.";
+        }
         // The ado wrapper supplies a freshly allocated Stata tempfile as arg 2.
         // Writing a status record here keeps linkage failures user-friendly too.
         if (writeFallbackStatus(args, message)) return 0;

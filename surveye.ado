@@ -1,4 +1,4 @@
-*! version 2.3.0 02aug2026
+*! version 2.3.2 05sep2026
 
 program define surveye, rclass
     version 16.0
@@ -985,7 +985,7 @@ program define _surveye_main, rclass
     if missing(`outN') return scalar N = `sample_N'
     return scalar sample_N = `sample_N'
     return scalar weighted = `weighted'
-    return local package_version "2.3.0"
+    return local package_version "2.3.2"
 end
 
 
@@ -993,7 +993,7 @@ program define _surveye_apply_appearance
     version 16.0
     args output theme background typography corners shadow motion pagewidth
 
-    local jarname "surveye_2_3_0.jar"
+    local jarname "surveye_2_3_2.jar"
     capture findfile `jarname'
     if _rc {
         display as error "`jarname' is not installed on the Stata ado-path"
@@ -1107,7 +1107,7 @@ program define _surveye_describe, rclass
     _surveye_read_status using `"`statusfile'"'
     return add
     if `"`macval(outquestionnaire)'"' == "" return local questionnaire `"`macval(using)'"'
-    return local package_version "2.3.0"
+    return local package_version "2.3.2"
 end
 
 
@@ -1175,7 +1175,7 @@ program define _surveye_configure, rclass
     _surveye_read_status using `"`statusfile'"'
     return add
     return local configurator `"`macval(saving)'"'
-    return local package_version "2.3.0"
+    return local package_version "2.3.2"
 end
 
 
@@ -1423,7 +1423,7 @@ program define _surveye_demo, rclass
         return local filename `"`macval(saving)'"'
     }
     if `"`macval(outquestionnaire)'"' == "" return local questionnaire `"`macval(using)'"'
-    return local package_version "2.3.0"
+    return local package_version "2.3.2"
 end
 
 
@@ -1498,7 +1498,7 @@ program define _surveye_invoke, rclass
     version 16.0
     args configfile statusfile diagnostics
 
-    local jarname "surveye_2_3_0.jar"
+    local jarname "surveye_2_3_2.jar"
     capture findfile `jarname'
     if _rc {
         display as error "`jarname' is not installed on the Stata ado-path"

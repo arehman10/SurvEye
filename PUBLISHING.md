@@ -1,5 +1,10 @@
 # Publishing SurvEye
 
+> This is an unpublished 2.3.1 local review candidate. Publishing instructions
+> below are for a later, separately authorized release. `release.sh` only
+> creates local archives and does not perform any remote action.
+
+
 Use this checklist for releases from the permanent public repository:
 
 <https://github.com/arehman10/SurvEye>
@@ -17,13 +22,14 @@ Use this checklist for releases from the permanent public repository:
 From the repository root:
 
 ```bash
-./build.sh
-./tests/check_stata_source.sh
-./tests/check_package.sh
+bash ./build.sh
+sh ./tests/check_stata_source.sh
+sh ./tests/check_package.sh
 node tests/test_statistics.js
-./tests/run_engine_smoke.sh tests
-./tests/run_parser_tests.sh /path/to/questionnaire-html-files
-./tests/run_engine_smoke.sh /path/to/questionnaire-html-files
+sh ./tests/run_engine_smoke.sh
+sh ./tests/run_parser_tests.sh
+sh ./tests/run_surveycto_tests.sh
+sh ./tests/test_appearance.sh
 ```
 
 ## 3. Run the licensed-Stata gate
@@ -36,10 +42,10 @@ candidate release:
 do "tests/stata_smoke.do" "C:/path/to/surveye"
 ```
 
-Also test an installation from the staged SSC directory in a clean ado-path:
+Also test an installation from the staged source directory (which includes `surveye.pkg`) in a clean ado-path:
 
 ```stata
-net install surveye, from("C:/path/to/release/surveye-2.3.0-ssc") replace
+net install surveye, from("C:/path/to/release/surveye-2.3.1-github") replace
 discard
 which surveye
 help surveye
@@ -72,25 +78,25 @@ and the [OpenStreetMap tile-use policy](https://operations.osmfoundation.org/pol
 ## 5. Create clean archives
 
 ```bash
-./release.sh /path/to/release
+bash ./release.sh /path/to/release
 ```
 
 This creates:
 
-- `surveye-2.3.0.zip` — full source, tests, documentation, example, and JARs;
-- `surveye-2.3.0-github.zip` — the same clean source with its contents flat at
+- `surveye-2.3.1.zip` — full source, tests, documentation, example, and JARs;
+- `surveye-2.3.1-github.zip` — the same clean source with its contents flat at
   the archive root, ready to upload to the GitHub repository root;
-- `surveye-2.3.0-ssc.zip` — only the flat installable package; and
+- `surveye-2.3.1-ssc.zip` — only the flat installable package; and
 - matching inspectable staging directories.
 
 The script builds from source, verifies the exact flat SSC inventory before
-publishing any archive, excludes retired installable filenames even if they
+writing any archive, excludes retired installable filenames even if they
 remain in a developer's working directory, and prints SHA-256 checksums.
 
 ## 6. Publish to GitHub
 
 - Read `GITHUB_UPLOAD.md`.
-- Upload the *contents* of `surveye-2.3.0-github.zip` to the root of the
+- Upload the *contents* of `surveye-2.3.1-github.zip` to the root of the
   `main` branch. Do not upload only the ZIP and do not add an enclosing folder.
 - Make the repository public before testing unauthenticated installation.
 - Confirm that both raw metadata URLs return plain text:
@@ -102,27 +108,27 @@ remain in a developer's working directory, and prints SHA-256 checksums.
 net install surveye, from("https://raw.githubusercontent.com/arehman10/SurvEye/main/") replace
 discard
 which surveye
-findfile surveye_2_3_0.jar
+findfile surveye_2_3_1.jar
 help surveye
 ```
 
 ## 7. Create the formal release and submit to SSC
 
-- Create an annotated `v2.3.0` tag and GitHub release.
+- Create an annotated `v2.3.1` tag and GitHub release.
 - Attach the source and SSC archives and publish the checksums shown by the
   release workflow.
 - Submit per the official instructions
   (http://repec.org/bocode/s/sscsubmit.html): email the flat zip built by
-  `release.sh` (`surveye-2.3.0-ssc.zip`) to the archive maintainer
+  `release.sh` (`surveye-2.3.1-ssc.zip`) to the archive maintainer
   (baum@bc.edu). The zip must contain only `surveye.ado`, `surveye.sthlp`,
-  `surveye_2_3_0.jar`, `example.do`, `LICENSE`, and
+  `surveye_2_3_1.jar`, `example.do`, `LICENSE`, and
   `THIRDPARTY-LICENSES.md` — never `surveye.pkg` or `stata.toc` (the
   archive generates both) and never the generic `surveye.jar` (a GitHub
   convenience the command does not load).
 - The email must state that the submission is new, suggest the package name
   (`surveye`), give the title line and abstract, name the author,
   affiliation, and contact email, declare no dependencies on other SSC
-  packages, and ask that `surveye_2_3_0.jar` be installed together with the
+  packages, and ask that `surveye_2_3_1.jar` be installed together with the
   ado by `net install` (the command loads it from the ado-path through
   Stata's Java integration); `example.do`, `LICENSE`, and
   `THIRDPARTY-LICENSES.md` can stay ancillary. A ready-to-edit draft ships

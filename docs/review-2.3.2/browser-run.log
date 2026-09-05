@@ -1,0 +1,74 @@
+PASS Preview embeds current production JavaScript byte for byte
+PASS Preview embeds current production CSS byte for byte
+PASS Fixture contains 240 explicitly synthetic interviews
+PASS All 117 original panels and their canvas nodes retained
+PASS All six original sections retained
+PASS Default animation duration remains 800ms
+PASS Generated DOM ids are unique
+PASS Binary highlight stays affirmative even when No is the modal response
+PASS Real archive embeds 25 named Sri Lankan district features
+PASS Leaflet renders 25 actual interactive district polygons
+PASS Points mode renders 240 separate accessible SVG markers, not clusters
+PASS Synthetic preview has no missing or outside-boundary points
+PASS Failed external tiles expose notice while embedded map remains visible
+PASS District name tooltip renders safely as text
+PASS Interview point has keyboard button semantics
+PASS Enter on interview point opens coordinate popup
+PASS Filter 01 selects Western interviews only
+PASS Map count follows clicked filter
+PASS Map rendered markers follow clicked filter
+PASS Region colors and legend stay stable under filtering
+PASS Code 1 remains distinct from code 01
+PASS Exact category identity preserved, not numeric coercion
+PASS Visible Stats raw n agrees with independent filtered values
+PASS Unweighted median matches Python independent calculation
+PASS Open Stats updates after weight toggle
+PASS Mean + 3 sample SD agrees with independent calculation
+PASS USD presentation divides once by explicit demo rate
+PASS Open Stats updates after currency toggle
+PASS Weighted Stats explanation restored
+PASS Already-open Stats refreshes immediately on another filter
+PASS Actual Chart.js histogram raw-bin counts equal valid filtered sample
+PASS Actual histogram weighted-bin total agrees with independent calculation
+PASS Browser CSV download contains exactly filtered interviews
+PASS CSV keeps ordinary underscore variables but removes runtime helpers
+PASS CSV uses correct exact-code category label
+PASS USD display does not alter raw CSV currency values
+PASS Indicator search does not change selected interviews
+PASS Search hides only nonmatching panels in original section grids
+PASS Shareable view preserves exact filter, search, and currency mode
+PASS Empty indicator search has a visible explanation
+PASS Reset restores all observations and chart panels
+PASS Empty subset removes stale map markers
+PASS Empty map returns to country extent, not old sample extent
+PASS Empty binary highlight reports n/a, not zero percent
+PASS All 117 panels instantiate actual Chart.js charts for print
+PASS Every chart has positive rendered canvas dimensions
+PASS No nonfinite Chart.js rendering dimensions
+PASS Repeated print events restore previous section disclosures
+PASS Print restoration closes previously closed map
+PASS Chart PNG export is a nonempty raster with title/legend area
+PASS Per-chart title customization still works
+PASS Theme control switches to dark rendering
+PASS No page-level horizontal overflow at 320px
+PASS Expanded filters fit within page at 320px
+PASS No page-level horizontal overflow at 390px
+PASS Expanded filters fit within page at 390px
+PASS No page-level horizontal overflow at 600px
+PASS Expanded filters fit within page at 600px
+PASS No page-level horizontal overflow at 768px
+PASS Expanded filters fit within page at 768px
+PASS No page-level horizontal overflow at 1024px
+PASS Expanded filters fit within page at 1024px
+PASS No page-level horizontal overflow at 1440px
+PASS Expanded filters fit within page at 1440px
+PASS No page-level horizontal overflow at 1920px
+PASS Expanded filters fit within page at 1920px
+PASS Reduced-motion preference disables animations
+PASS Separate edge-case fixture exposes two missing and two outside coordinates
+PASS Missing/outside footer follows region 01, not full-sample totals
+PASS Missing/outside footer follows region 1, not full-sample totals
+PASS Missing/outside footer follows region 03, not full-sample totals
+PASS Missing/outside footer follows region 04, not full-sample totals
+PASS No uncaught browser JavaScript exceptions (0 recorded)
+PASS real Chromium: 73 assertions in 19.02 seconds; zero page errors.

@@ -1,0 +1,48 @@
+PASS Stata source contracts
+PASS package manifest and JAR integrity  classes=62 sha256=fd86e8fbbeb2b1b2589653da6861de500e8e7c2ba6d4765035841abc7135c8cf
+PASS Stata-compatible dashboard statistics
+PASS stable affirmative highlights (unweighted, weighted, all-no, empty)
+warning: [options] source value 8 is obsolete and will be removed in a future release
+warning: [options] target value 8 is obsolete and will be removed in a future release
+warning: [options] To suppress warnings about obsolete options, use -Xlint:-options.
+3 warnings
+PASS synthetic-australia.html  sections=2 questions=11 options=18 warnings=0
+PASS synthetic-informal-en.html  sections=3 questions=7 options=6 warnings=0
+PASS synthetic-informal-si.html  sections=3 questions=7 options=6 warnings=0
+PASS synthetic-trg.html  sections=1 questions=1 options=2 warnings=0
+PASS parser suite  assertions=181
+warning: [options] source value 8 is obsolete and will be removed in a future release
+warning: [options] target value 8 is obsolete and will be removed in a future release
+warning: [options] To suppress warnings about obsolete options, use -Xlint:-options.
+3 warnings
+PASS Stata entry point and status-file contract
+PASS dashboard UI language and direction resolution
+PASS Java weight validation and analysis-sample contract
+PASS USD, weight-toggle, and summary-table backend contract
+PASS Stata date-format and special/missing META propagation (%tm %tq %tw %th %ty %td %tc; filter-only highlight)
+PASS completion missing-code reduction (valid/-9/blank -> true/null/null)
+PASS typed filters and all-missing choice suppression
+PASS missingcodes() map group exclusion with ungrouped point retention
+PASS Arabic and Urdu localized binary recognition
+PASS calculated-variable display-label fallback contract
+PASS grouped family, comparison, and discrete-count contracts
+PASS maxcategories-independent numeric distribution contracts
+PASS Java audit regressions: privacy, exact category codes, signed numeric values, compare levels, XML labels, CSV records, panel pruning, printable types
+Source recovery contracts passed.
+PASS Stata bridge linkage-failure status contract
+PASS CLI --config path-collision protection
+warning: [options] source value 8 is obsolete and will be removed in a future release
+warning: [options] target value 8 is obsolete and will be removed in a future release
+warning: [options] To suppress warnings about obsolete options, use -Xlint:-options.
+3 warnings
+PASS boundary archive regressions (77 assertions): Mac metadata, UTF-8-SIG, names, null/deleted rows, holes, islands, errors
+PASS XForm describe (title, itext sections, counts, GPS candidate)
+PASS XForm build (multi reassembly, choice labels, calculate, filters, captions)
+PASS XForm demo (simulated preview without data)
+PASS printable table layout (sections, breadcrumb repeats, captions, choices)
+PASS unrecognized files fail with the combined format guidance
+PASS unrecognized SurveyCTO pages point to the XML definition
+PASS Survey Solutions detection unchanged
+SurveyCTO support checks passed.
+Appearance tests passed.
+PASS portable release gate (optional DOM, browser, and licensed-Stata QA are separate)

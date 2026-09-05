@@ -1,16 +1,21 @@
 # Publishing SurvEye on GitHub
 
+> This is an unpublished 2.3.1 local review candidate. Publishing instructions
+> below are for a later, separately authorized release. `release.sh` only
+> creates local archives and does not perform any remote action.
+
+
 This repository is a Stata `net install` source. Its package metadata and every
 file named by that metadata must be present at the repository root.
 
 ## Recommended upload
 
 1. Run `./release.sh /path/to/release`.
-2. Extract `surveye-2.3.0-github.zip`.
+2. Extract `surveye-2.3.1-github.zip`.
 3. Upload the **contents** of the extracted archive to the root of
    `arehman10/SurvEye` on the `main` branch.
 4. Replace the existing root files when GitHub asks. Do not upload the ZIP by
-   itself and do not retain an enclosing `surveye-2.3.0-github` folder.
+   itself and do not retain an enclosing `surveye-2.3.1-github` folder.
 5. Make the repository public. Stata cannot authenticate to a private GitHub
    raw-content URL during a normal `net install`.
 
@@ -23,7 +28,7 @@ surveye.pkg
 surveye.ado
 surveye.sthlp
 surveye.jar
-surveye_2_3_0.jar
+surveye_2_3_1.jar
 example.do
 LICENSE
 THIRDPARTY-LICENSES.md
@@ -34,7 +39,7 @@ The GitHub-ready archive also includes the Java source, tests, workflow, and
 release documentation. Retired `suso_dashboard*.jar` and `surveydash*.jar`
 files are deliberately excluded.
 
-## Removed in 2.3.0 — delete these from the repository
+## Removed in 2.3.1 — delete these from the repository
 
 ```text
 surveye_2_1_3.jar
@@ -43,7 +48,7 @@ surveye_2_1_3.jar
 **GitHub's web "Upload files" adds and overwrites but never deletes.** If you
 refresh the repository by uploading, retired files stay behind and the CI
 identity check fails (the 2.1.3 workflow reported this as a cryptic
-`surveye.jar surveye_2_1_3.jar differ: byte 11` from `cmp`; since 2.3.0,
+`surveye.jar surveye_2_1_3.jar differ: byte 11` from `cmp`; since 2.3.1,
 `tests/check_package.sh` names the stale jar and this fix). Delete each
 removed file in the web UI: open the file, choose **Delete file**, and commit.
 
@@ -52,9 +57,9 @@ Two further web-upload caveats:
 1. Include the hidden `.github` folder (or upload
    `.github/workflows/ci.yml` explicitly). If the old workflow keeps
    running, its checks reference the previous release jar and fail even
-   when every 2.3.0 file is correct.
+   when every 2.3.1 file is correct.
 2. After uploading, open `.github/workflows/ci.yml` on GitHub and confirm
-   it references `surveye_2_3_0.jar`.
+   it references `surveye_2_3_1.jar`.
 
 The cleanest refresh mirrors the release exactly, deletions included:
 
@@ -64,8 +69,8 @@ cd SurvEye
 git rm -r -q .
 # copy the CONTENTS of the extracted release here, including .github
 git add -A
-git status   # expect: deleted surveye_2_1_3.jar, new surveye_2_3_0.jar
-git commit -m "SurvEye 2.3.0"
+git status   # expect: deleted surveye_2_1_3.jar, new surveye_2_3_1.jar
+git commit -m "SurvEye 2.3.1"
 git push
 ```
 
@@ -87,7 +92,7 @@ Start a fresh Stata session and run:
 net install surveye, from("https://raw.githubusercontent.com/arehman10/SurvEye/main/") replace
 discard
 which surveye
-findfile surveye_2_3_0.jar
+findfile surveye_2_3_1.jar
 help surveye
 ```
 

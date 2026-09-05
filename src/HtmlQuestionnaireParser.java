@@ -494,6 +494,15 @@ final class HtmlQuestionnaireParser {
         private MiniHtml() {}
 
         static Node parse(String html) {
+            return parse(html, false);
+        }
+
+        /** XForms use XML nesting: input, link and other HTML void names can have children. */
+        static Node parseXml(String xml) {
+            return parse(xml, true);
+        }
+
+        private static Node parse(String html, boolean xml) {
             Node document = Node.element("#document", new LinkedHashMap<String, String>());
             Deque<Node> stack = new ArrayDeque<Node>();
             stack.push(document);
@@ -553,7 +562,7 @@ final class HtmlQuestionnaireParser {
                     continue;
                 }
 
-                boolean selfClosing = isSelfClosing(trimmed) || VOID_TAGS.contains(tag);
+                boolean selfClosing = isSelfClosing(trimmed) || (!xml && VOID_TAGS.contains(tag));
                 if ("style".equals(tag) || "script".equals(tag)) {
                     int rawClose = indexOfClosingTag(html, tag, end + 1);
                     if (rawClose < 0) break;
