@@ -1,9 +1,9 @@
-*! version 2.3.2 05sep2026
+*! version 2.3.4 19sep2026
 
 program define surveye, rclass
     version 16.0
 
-    if `"`0'"' == "" {
+    if `"`macval(0)'"' == "" {
         display as error "surveye requires a questionnaire HTML file"
         display as error "Try {stata help surveye:help surveye}."
         exit 198
@@ -13,30 +13,30 @@ program define surveye, rclass
     local subcmd = lower(`"`subcmd'"')
 
     if `"`subcmd'"' == "describe" {
-        _surveye_describe `rest'
+        _surveye_describe `macval(rest)'
         return add
         exit
     }
 
     if `"`subcmd'"' == "demo" {
-        _surveye_demo `rest'
+        _surveye_demo `macval(rest)'
         return add
         exit
     }
 
     if `"`subcmd'"' == "configure" {
-        _surveye_configure `rest'
+        _surveye_configure `macval(rest)'
         return add
         exit
     }
 
     if `"`subcmd'"' == "build" {
-        _surveye_main `rest'
+        _surveye_main `macval(rest)'
         return add
         exit
     }
 
-    _surveye_main `0'
+    _surveye_main `macval(0)'
     return add
 end
 
@@ -49,11 +49,11 @@ program define _surveye_main, rclass
         SAVing(string)                                               ///
         [ REPLACE OPEN                                               ///
           TITle(string) SUBTitle(string) BYLine(string)              ///
-          QUESTions(string asis)                                    ///
+          QUESTions(string)                                    ///
           SECTions(numlist integer >0) SECTIONMatch(string)          ///
-          EXclude(string asis) FILters(varlist) HIGHlights(varlist) ///
+          EXclude(string) FILters(varlist) HIGHlights(varlist) ///
           KEYMessages(string) CUSTOMSections(string)                 ///
-          CUSTOMVars(varlist) ADDToSections(string)                  ///
+          CUSTOMVars(varlist) ADDTOSections(string)                  ///
           VARGroups(string) NOAUTOGroups UNGROUPVars(varlist)        ///
           DISCrete(varlist) CONTinuous(varlist) NOAUTODISCrete      ///
           COMPARE(varlist) COMPAREBy(varname)                        ///
@@ -61,9 +61,9 @@ program define _surveye_main, rclass
           USDVars(varlist) USDRate(numlist min=1 max=1)              ///
           CURRENCY(string)                                          ///
           TABLEBy(varname) TABLEVars(varlist)                        ///
-          TABLESTats(string asis) TABLELAbels(string asis)          ///
+          TABLESTats(string) TABLELAbels(string)          ///
           TABLETItle(string) TABLESUbtitle(string)                   ///
-          TABLETOtal(string) TABLEWeightLabel(string)                ///
+          TABLETOtal(string) TABLEWeightlabel(string)                ///
           BARs(varlist) DONUTs(varlist) HISTograms(varlist)          ///
           MAXCategories(integer 12) MAXPanels(integer 100)          ///
           MISSingcodes(numlist missingokay)                         ///
@@ -78,71 +78,71 @@ program define _surveye_main, rclass
           CI LEVel(numlist min=1 max=1) STRICT DIAGNostics(string) SHOWEmpty ]
 
     // ---------- Files and mutually dependent options ----------
-    capture confirm file `"`using'"'
+    capture confirm file `"`macval(using)'"'
     if _rc {
         display as error "surveye: questionnaire file not found"
-        display as error `"  `using'"'
+        display as error `"  `macval(using)'"'
         exit 601
     }
 
-    if strtrim(`"`saving'"') == "" {
+    if strtrim(`"`macval(saving)'"') == "" {
         display as error "surveye: saving() requires a filename"
         exit 198
     }
 
-    if !regexm(lower(`"`saving'"'), "[.]html?$") {
-        local saving `"`saving'.html"'
+    if !regexm(lower(`"`macval(saving)'"'), "[.]html?$") {
+        local saving `"`macval(saving)'.html"'
     }
 
     if `"`replace'"' == "" {
-        capture confirm new file `"`saving'"'
+        capture confirm new file `"`macval(saving)'"'
         if _rc {
-            display as error `"surveye: output file already exists: `saving'"'
+            display as error `"surveye: output file already exists: `macval(saving)'"'
             display as error "Specify {bf:replace} or choose another saving() filename."
             exit 602
         }
     }
 
-    if `"`boundaries'"' != "" {
-        capture confirm file `"`boundaries'"'
+    if `"`macval(boundaries)'"' != "" {
+        capture confirm file `"`macval(boundaries)'"'
         if _rc {
-            display as error `"surveye: boundaries file not found: `boundaries'"'
+            display as error `"surveye: boundaries file not found: `macval(boundaries)'"'
             exit 601
         }
     }
 
-    if `"`logo'"' != "" {
-        capture confirm file `"`logo'"'
+    if `"`macval(logo)'"' != "" {
+        capture confirm file `"`macval(logo)'"'
         if _rc {
-            display as error `"surveye: logo file not found: `logo'"'
+            display as error `"surveye: logo file not found: `macval(logo)'"'
             exit 601
         }
     }
 
-    local qkey = ustrlower(strtrim(`"`using'"'))
-    local outkey = ustrlower(strtrim(`"`saving'"'))
-    local diagkey = ustrlower(strtrim(`"`diagnostics'"'))
-    if `"`outkey'"' == `"`qkey'"' {
+    local qkey = ustrlower(strtrim(`"`macval(using)'"'))
+    local outkey = ustrlower(strtrim(`"`macval(saving)'"'))
+    local diagkey = ustrlower(strtrim(`"`macval(diagnostics)'"'))
+    if `"`macval(outkey)'"' == `"`macval(qkey)'"' {
         display as error "surveye: saving() may not overwrite the questionnaire"
         exit 198
     }
-    if `"`diagkey'"' != "" & inlist(`"`diagkey'"', `"`qkey'"', `"`outkey'"') {
+    if `"`macval(diagkey)'"' != "" & inlist(`"`macval(diagkey)'"', `"`macval(qkey)'"', `"`macval(outkey)'"') {
         display as error "surveye: diagnostics() must differ from the questionnaire and saving()"
         exit 198
     }
-    if `"`boundaries'"' != "" & `"`diagkey'"' == ustrlower(strtrim(`"`boundaries'"')) {
+    if `"`macval(boundaries)'"' != "" & `"`macval(diagkey)'"' == ustrlower(strtrim(`"`macval(boundaries)'"')) {
         display as error "surveye: diagnostics() may not overwrite boundaries()"
         exit 198
     }
-    if `"`logo'"' != "" & `"`diagkey'"' == ustrlower(strtrim(`"`logo'"')) {
+    if `"`macval(logo)'"' != "" & `"`macval(diagkey)'"' == ustrlower(strtrim(`"`macval(logo)'"')) {
         display as error "surveye: diagnostics() may not overwrite logo()"
         exit 198
     }
 
-    if `"`diagnostics'"' != "" & `"`replace'"' == "" {
-        capture confirm new file `"`diagnostics'"'
+    if `"`macval(diagnostics)'"' != "" & `"`replace'"' == "" {
+        capture confirm new file `"`macval(diagnostics)'"'
         if _rc {
-            display as error `"surveye: diagnostics file already exists: `diagnostics'"'
+            display as error `"surveye: diagnostics file already exists: `macval(diagnostics)'"'
             display as error "Specify {bf:replace} or choose another diagnostics() filename."
             exit 602
         }
@@ -165,7 +165,7 @@ program define _surveye_main, rclass
 
     local maprequested = (`"`latitude'"' != "")
     if !`maprequested' & ///
-        (`"`country'`boundaries'`maplevel'`maptype'`basemap'`mapby'`maptitle'"' != "") {
+        (`"`country'`macval(boundaries)'`maplevel'`maptype'`basemap'`mapby'`maptitle'"' != "") {
         display as error "surveye: map options require latitude() and longitude()"
         exit 198
     }
@@ -360,6 +360,10 @@ program define _surveye_main, rclass
     local normalizedgroups ""
     local groupedvars ""
     local grouprest `"`macval(vargroups)'"'
+    if regexm(strtrim(`"`macval(grouprest)'"'), "[|]$") {
+        display as error "surveye: vargroups() may not contain an empty group"
+        exit 198
+    }
     while strtrim(`"`macval(grouprest)'"') != "" {
         local pipe = strpos(`"`macval(grouprest)'"', "|")
         if `pipe' > 0 {
@@ -531,21 +535,18 @@ program define _surveye_main, rclass
             exit 198
         }
 
-        // string asis preserves Stata's syntax quotes.  Remove one matching
-        // outer pair before validating the pipe-delimited entries.
+        // The string syntax descriptor removes ordinary and compound syntax quotes.
         local tablestatsclean = strtrim(`"`macval(tablestats)'"')
-        if strlen(`"`macval(tablestatsclean)'"') >= 2 & ///
-            substr(`"`macval(tablestatsclean)'"', 1, 1) == char(34) & ///
-            substr(`"`macval(tablestatsclean)'"', strlen(`"`macval(tablestatsclean)'"'), 1) == char(34) {
-            local tablestatsclean = substr(`"`macval(tablestatsclean)'"', 2, strlen(`"`macval(tablestatsclean)'"') - 2)
-        }
         local tablelabelsclean = strtrim(`"`macval(tablelabels)'"')
-        if strlen(`"`macval(tablelabelsclean)'"') >= 2 & ///
-            substr(`"`macval(tablelabelsclean)'"', 1, 1) == char(34) & ///
-            substr(`"`macval(tablelabelsclean)'"', strlen(`"`macval(tablelabelsclean)'"'), 1) == char(34) {
-            local tablelabelsclean = substr(`"`macval(tablelabelsclean)'"', 2, strlen(`"`macval(tablelabelsclean)'"') - 2)
-        }
 
+        if regexm(strtrim(`"`macval(tablestatsclean)'"'), "[|]$") {
+            display as error "surveye: tablestats() may not contain an empty entry"
+            exit 198
+        }
+        if regexm(strtrim(`"`macval(tablelabelsclean)'"'), "[|]$") {
+            display as error "surveye: tablelabels() may not contain an empty entry"
+            exit 198
+        }
         local ntablevars : word count `tablevars'
         local normalizedstats ""
         local statrest `"`macval(tablestatsclean)'"'
@@ -832,7 +833,7 @@ program define _surveye_main, rclass
 
     // Config values are one UTF-8 key<TAB>value record per line.
     tempname cfg
-    file open `cfg' using `"`configfile'"', write text replace
+    file open `cfg' using `"`macval(configfile)'"', write text replace
     _surveye_cfgline `cfg' mode             `"build"'
     _surveye_cfgline `cfg' questionnaire    `"`macval(using)'"'
     _surveye_cfgline `cfg' data             `"`macval(datafile)'"'
@@ -894,8 +895,9 @@ program define _surveye_main, rclass
     _surveye_cfgline `cfg' direction        `"`macval(direction)'"'
     _surveye_cfgline `cfg' note             `"`macval(note)'"'
     _surveye_cfgline `cfg' source           `"`macval(source)'"'
-    if `"`disclaimer'"' != "" ///
+    if `"`macval(disclaimer)'"' != "" {
         _surveye_cfgline `cfg' disclaimer   `"`macval(disclaimer)'"'
+    }
     _surveye_cfgline `cfg' strict           `"`macval(strictflag)'"'
     _surveye_cfgline `cfg' diagnostics      `"`macval(diagnostics)'"'
     _surveye_cfgline `cfg' showempty        `"`macval(showemptyflag)'"'
@@ -922,7 +924,7 @@ program define _surveye_main, rclass
     }
     file close `cfg'
 
-    _surveye_invoke `"`configfile'"' `"`statusfile'"' `"`diagnostics'"'
+    _surveye_invoke `"`macval(configfile)'"' `"`macval(statusfile)'"' `"`macval(diagnostics)'"'
 
     mata: st_local("outfile", st_global("r(filename)"))
     mata: st_local("outtitle", st_global("r(title)"))
@@ -948,11 +950,15 @@ program define _surveye_main, rclass
 
     display as text _newline "{hline 72}"
     display as result "OK" as text "  SurvEye dashboard created"
-    if `"`macval(outtitle)'"' != "" display as text "    Title           " as result `"`macval(outtitle)'"'
+    if `"`macval(outtitle)'"' != "" {
+        display as text "    Title           " as result `"`macval(outtitle)'"'
+    }
     if !missing(`outN') display as text "    Observations    " as result %12.0fc `outN'
     if !missing(`outsections') display as text "    Sections        " as result %12.0fc `outsections'
     if !missing(`outcharts') display as text "    Indicators      " as result %12.0fc `outcharts'
-    if `"`macval(outfilters)'"' != "" display as text "    Filters         " as result `"`macval(outfilters)'"'
+    if `"`macval(outfilters)'"' != "" {
+        display as text "    Filters         " as result `"`macval(outfilters)'"'
+    }
     if `hasmap' == 1 & !missing(`mapN') & ///
         !missing(`mapmissing') & !missing(`mapoutside') {
         display as text "    GPS map         " as result %12.0fc `mapN' ///
@@ -975,17 +981,19 @@ program define _surveye_main, rclass
     }
 
     // Return results last so browser handling cannot overwrite r().
-    _surveye_read_status using `"`statusfile'"'
+    _surveye_read_status using `"`macval(statusfile)'"'
     return add
     if `"`macval(statusoutfile)'"' == "" {
         return local output `"`macval(saving)'"'
         return local filename `"`macval(saving)'"'
     }
-    if `"`macval(outquestionnaire)'"' == "" return local questionnaire `"`macval(using)'"'
+    if `"`macval(outquestionnaire)'"' == "" {
+        return local questionnaire `"`macval(using)'"'
+    }
     if missing(`outN') return scalar N = `sample_N'
     return scalar sample_N = `sample_N'
     return scalar weighted = `weighted'
-    return local package_version "2.3.2"
+    return local package_version "2.3.4"
 end
 
 
@@ -993,7 +1001,7 @@ program define _surveye_apply_appearance
     version 16.0
     args output theme background typography corners shadow motion pagewidth
 
-    local jarname "surveye_2_3_2.jar"
+    local jarname "surveye_2_3_4.jar"
     capture findfile `jarname'
     if _rc {
         display as error "`jarname' is not installed on the Stata ado-path"
@@ -1002,7 +1010,7 @@ program define _surveye_apply_appearance
     }
 
     capture noisily javacall org.worldbank.surveye.AppearancePlugin apply, ///
-        jars(`jarname') args(`"`output'"' `"`theme'"' `"`background'"' ///
+        jars(`jarname') args(`"`macval(output)'"' `"`theme'"' `"`background'"' ///
         `"`typography'"' `"`corners'"' `"`shadow'"' `"`motion'"' `"`pagewidth'"')
     local appearance_rc = _rc
     if `appearance_rc' {
@@ -1018,22 +1026,22 @@ program define _surveye_describe, rclass
 
     syntax using/ [, DETAIL STRICT DIAGNostics(string) REPLACE]
 
-    capture confirm file `"`using'"'
+    capture confirm file `"`macval(using)'"'
     if _rc {
-        display as error `"surveye: questionnaire file not found: `using'"'
+        display as error `"surveye: questionnaire file not found: `macval(using)'"'
         exit 601
     }
 
-    if `"`diagnostics'"' != "" & ///
-        ustrlower(strtrim(`"`diagnostics'"')) == ustrlower(strtrim(`"`using'"')) {
+    if `"`macval(diagnostics)'"' != "" & ///
+        ustrlower(strtrim(`"`macval(diagnostics)'"')) == ustrlower(strtrim(`"`macval(using)'"')) {
         display as error "surveye: diagnostics() may not overwrite the questionnaire"
         exit 198
     }
 
-    if `"`diagnostics'"' != "" & `"`replace'"' == "" {
-        capture confirm new file `"`diagnostics'"'
+    if `"`macval(diagnostics)'"' != "" & `"`replace'"' == "" {
+        capture confirm new file `"`macval(diagnostics)'"'
         if _rc {
-            display as error `"surveye: diagnostics file already exists: `diagnostics'"'
+            display as error `"surveye: diagnostics file already exists: `macval(diagnostics)'"'
             display as error "Specify {bf:replace} or choose another diagnostics() filename."
             exit 602
         }
@@ -1044,7 +1052,7 @@ program define _surveye_describe, rclass
     local strictflag = (`"`strict'"' != "")
     local replaceflag = (`"`replace'"' != "")
     tempname cfg
-    file open `cfg' using `"`configfile'"', write text replace
+    file open `cfg' using `"`macval(configfile)'"', write text replace
     _surveye_cfgline `cfg' mode             `"describe"'
     _surveye_cfgline `cfg' questionnaire    `"`macval(using)'"'
     _surveye_cfgline `cfg' status           `"`macval(statusfile)'"'
@@ -1054,7 +1062,7 @@ program define _surveye_describe, rclass
     _surveye_cfgline `cfg' replace          `"`macval(replaceflag)'"'
     file close `cfg'
 
-    _surveye_invoke `"`configfile'"' `"`statusfile'"' `"`diagnostics'"'
+    _surveye_invoke `"`macval(configfile)'"' `"`macval(statusfile)'"' `"`macval(diagnostics)'"'
 
     mata: st_local("outtitle", st_global("r(title)"))
     local outsections = r(k_sections)
@@ -1068,10 +1076,14 @@ program define _surveye_describe, rclass
     mata: st_local("outquestionnaire", st_global("r(questionnaire)"))
     display as text _newline "{hline 72}"
     display as result "OK" as text "  Questionnaire read successfully"
-    if `"`macval(outtitle)'"' != "" display as text "    Title            " as result `"`macval(outtitle)'"'
+    if `"`macval(outtitle)'"' != "" {
+        display as text "    Title            " as result `"`macval(outtitle)'"'
+    }
     if !missing(`outsections') display as text "    Sections         " as result %12.0fc `outsections'
     if !missing(`outcharts') display as text "    Chartable items  " as result %12.0fc `outcharts'
-    if `"`macval(engine)'"' != "" display as text "    Engine           " as result `"`macval(engine)'"'
+    if `"`macval(engine)'"' != "" {
+        display as text "    Engine           " as result `"`macval(engine)'"'
+    }
     if !missing(`outwarnings') ///
         display as text "    Warnings         " as result %12.0fc `outwarnings'
     if `"`detail'"' != "" & `"`macval(sectionlist)'"' != "" {
@@ -1104,10 +1116,12 @@ program define _surveye_describe, rclass
     }
     display as text "{hline 72}"
 
-    _surveye_read_status using `"`statusfile'"'
+    _surveye_read_status using `"`macval(statusfile)'"'
     return add
-    if `"`macval(outquestionnaire)'"' == "" return local questionnaire `"`macval(using)'"'
-    return local package_version "2.3.2"
+    if `"`macval(outquestionnaire)'"' == "" {
+        return local questionnaire `"`macval(using)'"'
+    }
+    return local package_version "2.3.4"
 end
 
 
@@ -1116,25 +1130,25 @@ program define _surveye_configure, rclass
 
     syntax using/ [, SAVing(string) REPLACE OPEN]
 
-    capture confirm file `"`using'"'
+    capture confirm file `"`macval(using)'"'
     if _rc {
-        display as error `"surveye: questionnaire file not found: `using'"'
+        display as error `"surveye: questionnaire file not found: `macval(using)'"'
         exit 601
     }
 
-    if strtrim(`"`saving'"') == "" {
+    if strtrim(`"`macval(saving)'"') == "" {
         display as error "surveye configure: saving() is required"
         display as error `"  Example: surveye configure using "form.xml", saving("configure.html")"'
         exit 198
     }
-    if ustrlower(strtrim(`"`saving'"')) == ustrlower(strtrim(`"`using'"')) {
+    if ustrlower(strtrim(`"`macval(saving)'"')) == ustrlower(strtrim(`"`macval(using)'"')) {
         display as error "surveye: saving() may not overwrite the questionnaire"
         exit 198
     }
     if `"`replace'"' == "" {
-        capture confirm new file `"`saving'"'
+        capture confirm new file `"`macval(saving)'"'
         if _rc {
-            display as error `"surveye: output file already exists: `saving'"'
+            display as error `"surveye: output file already exists: `macval(saving)'"'
             display as error "Specify {bf:replace} or choose another saving() filename."
             exit 602
         }
@@ -1143,7 +1157,7 @@ program define _surveye_configure, rclass
     tempfile configfile statusfile
     local replaceflag = (`"`replace'"' != "")
     tempname cfg
-    file open `cfg' using `"`configfile'"', write text replace
+    file open `cfg' using `"`macval(configfile)'"', write text replace
     _surveye_cfgline `cfg' mode             `"configure"'
     _surveye_cfgline `cfg' questionnaire    `"`macval(using)'"'
     _surveye_cfgline `cfg' output           `"`macval(saving)'"'
@@ -1161,7 +1175,7 @@ program define _surveye_configure, rclass
     }
     file close `cfg'
 
-    _surveye_invoke `"`configfile'"' `"`statusfile'"' `""'
+    _surveye_invoke `"`macval(configfile)'"' `"`macval(statusfile)'"' `""'
 
     display as text _newline "{hline 72}"
     display as result "OK" as text "  Configurator saved"
@@ -1172,10 +1186,10 @@ program define _surveye_configure, rclass
         capture noisily view browse `"`macval(saving)'"'
     }
 
-    _surveye_read_status using `"`statusfile'"'
+    _surveye_read_status using `"`macval(statusfile)'"'
     return add
     return local configurator `"`macval(saving)'"'
-    return local package_version "2.3.2"
+    return local package_version "2.3.4"
 end
 
 
@@ -1191,12 +1205,12 @@ program define _surveye_demo, rclass
           NOTE(string) SOURCE(string) DISCLAIMer(string) ///
           CI LEVel(numlist min=1 max=1) DIAGNostics(string) ]
 
-    capture confirm file `"`using'"'
+    capture confirm file `"`macval(using)'"'
     if _rc {
-        display as error `"surveye: questionnaire file not found: `using'"'
+        display as error `"surveye: questionnaire file not found: `macval(using)'"'
         exit 601
     }
-    if strtrim(`"`saving'"') == "" {
+    if strtrim(`"`macval(saving)'"') == "" {
         display as error "surveye demo: saving() requires a filename"
         exit 198
     }
@@ -1224,36 +1238,38 @@ program define _surveye_demo, rclass
         exit 198
     }
 
-    if !regexm(lower(`"`saving'"'), "[.]html?$") local saving `"`saving'.html"'
+    if !regexm(lower(`"`macval(saving)'"'), "[.]html?$") {
+        local saving `"`macval(saving)'.html"'
+    }
     if `"`replace'"' == "" {
-        capture confirm new file `"`saving'"'
+        capture confirm new file `"`macval(saving)'"'
         if _rc {
-            display as error `"surveye: output file already exists: `saving'"'
+            display as error `"surveye: output file already exists: `macval(saving)'"'
             display as error "Specify {bf:replace} or choose another saving() filename."
             exit 602
         }
     }
 
-    if `"`logo'"' != "" {
-        capture confirm file `"`logo'"'
+    if `"`macval(logo)'"' != "" {
+        capture confirm file `"`macval(logo)'"'
         if _rc {
-            display as error `"surveye: logo file not found: `logo'"'
+            display as error `"surveye: logo file not found: `macval(logo)'"'
             exit 601
         }
     }
 
-    local qkey = ustrlower(strtrim(`"`using'"'))
-    local outkey = ustrlower(strtrim(`"`saving'"'))
-    local diagkey = ustrlower(strtrim(`"`diagnostics'"'))
-    if `"`outkey'"' == `"`qkey'"' {
+    local qkey = ustrlower(strtrim(`"`macval(using)'"'))
+    local outkey = ustrlower(strtrim(`"`macval(saving)'"'))
+    local diagkey = ustrlower(strtrim(`"`macval(diagnostics)'"'))
+    if `"`macval(outkey)'"' == `"`macval(qkey)'"' {
         display as error "surveye: saving() may not overwrite the questionnaire"
         exit 198
     }
-    if `"`diagkey'"' != "" & inlist(`"`diagkey'"', `"`qkey'"', `"`outkey'"') {
+    if `"`macval(diagkey)'"' != "" & inlist(`"`macval(diagkey)'"', `"`macval(qkey)'"', `"`macval(outkey)'"') {
         display as error "surveye: diagnostics() must differ from the questionnaire and saving()"
         exit 198
     }
-    if `"`logo'"' != "" & `"`diagkey'"' == ustrlower(strtrim(`"`logo'"')) {
+    if `"`macval(logo)'"' != "" & `"`macval(diagkey)'"' == ustrlower(strtrim(`"`macval(logo)'"')) {
         display as error "surveye: diagnostics() may not overwrite logo()"
         exit 198
     }
@@ -1344,10 +1360,10 @@ program define _surveye_demo, rclass
         }
     }
 
-    if `"`diagnostics'"' != "" & `"`replace'"' == "" {
-        capture confirm new file `"`diagnostics'"'
+    if `"`macval(diagnostics)'"' != "" & `"`replace'"' == "" {
+        capture confirm new file `"`macval(diagnostics)'"'
         if _rc {
-            display as error `"surveye: diagnostics file already exists: `diagnostics'"'
+            display as error `"surveye: diagnostics file already exists: `macval(diagnostics)'"'
             display as error "Specify {bf:replace} or choose another diagnostics() filename."
             exit 602
         }
@@ -1358,7 +1374,7 @@ program define _surveye_demo, rclass
 
     tempfile configfile statusfile
     tempname cfg
-    file open `cfg' using `"`configfile'"', write text replace
+    file open `cfg' using `"`macval(configfile)'"', write text replace
     _surveye_cfgline `cfg' mode             `"demo"'
     _surveye_cfgline `cfg' questionnaire    `"`macval(using)'"'
     _surveye_cfgline `cfg' output           `"`macval(saving)'"'
@@ -1379,12 +1395,13 @@ program define _surveye_demo, rclass
     _surveye_cfgline `cfg' cilevel          `"`macval(level)'"'
     _surveye_cfgline `cfg' note             `"`macval(note)'"'
     _surveye_cfgline `cfg' source           `"`macval(source)'"'
-    if `"`disclaimer'"' != "" ///
+    if `"`macval(disclaimer)'"' != "" {
         _surveye_cfgline `cfg' disclaimer   `"`macval(disclaimer)'"'
+    }
     _surveye_cfgline `cfg' diagnostics      `"`macval(diagnostics)'"'
     file close `cfg'
 
-    _surveye_invoke `"`configfile'"' `"`statusfile'"' `"`diagnostics'"'
+    _surveye_invoke `"`macval(configfile)'"' `"`macval(statusfile)'"' `"`macval(diagnostics)'"'
 
     mata: st_local("outfile", st_global("r(filename)"))
     mata: st_local("outtitle", st_global("r(title)"))
@@ -1403,7 +1420,9 @@ program define _surveye_demo, rclass
     display as text _newline "{hline 72}"
     display as result "OK" as text "  Simulated SurvEye dashboard created"
     display as text "    Data             " as result "SIMULATED -- PREVIEW ONLY"
-    if `"`macval(outtitle)'"' != "" display as text "    Title            " as result `"`macval(outtitle)'"'
+    if `"`macval(outtitle)'"' != "" {
+        display as text "    Title            " as result `"`macval(outtitle)'"'
+    }
     if !missing(`outN') display as text "    Simulated rows   " as result %12.0fc `outN'
     if !missing(`outwarnings') & `outwarnings' > 0 ///
         display as text "    Flags            " as result %12.0fc `outwarnings'
@@ -1416,14 +1435,16 @@ program define _surveye_demo, rclass
         if _rc display as text "Flag  Dashboard created, but Stata could not open the browser."
     }
 
-    _surveye_read_status using `"`statusfile'"'
+    _surveye_read_status using `"`macval(statusfile)'"'
     return add
     if `"`macval(statusoutfile)'"' == "" {
         return local output `"`macval(saving)'"'
         return local filename `"`macval(saving)'"'
     }
-    if `"`macval(outquestionnaire)'"' == "" return local questionnaire `"`macval(using)'"'
-    return local package_version "2.3.2"
+    if `"`macval(outquestionnaire)'"' == "" {
+        return local questionnaire `"`macval(using)'"'
+    }
+    return local package_version "2.3.4"
 end
 
 
@@ -1485,6 +1506,14 @@ program define _surveye_cfgline
     version 16.0
     args handle key value
 
+    // Stata's JVM can retain its installation directory after Stata changes
+    // directory. Resolve file options against Stata's current directory.
+    if inlist("`key'", "questionnaire", "data", "output", "status", "diagnostics", "boundaries", "logo") {
+        if strtrim(`"`macval(value)'"') != "" {
+            mata: st_local("value", pathresolve(pwd(), st_local("value")))
+        }
+    }
+
     // The config format is line-oriented. Tabs/newlines in user text are folded
     // to spaces so one option can never create a second record.
     local value = subinstr(`"`macval(value)'"', char(9), " ", .)
@@ -1498,7 +1527,7 @@ program define _surveye_invoke, rclass
     version 16.0
     args configfile statusfile diagnostics
 
-    local jarname "surveye_2_3_2.jar"
+    local jarname "surveye_2_3_4.jar"
     capture findfile `jarname'
     if _rc {
         display as error "`jarname' is not installed on the Stata ado-path"
@@ -1515,10 +1544,10 @@ program define _surveye_invoke, rclass
     // still show a class-loader/JVM diagnostic if invocation fails before the
     // engine has a chance to create its status file.
     capture noisily javacall org.worldbank.surveye.StataPlugin stata, ///
-        jars(`jarname') args(`"`configfile'"' `"`statusfile'"')
+        jars(`jarname') args(`"`macval(configfile)'"' `"`macval(statusfile)'"')
     local java_rc = _rc
 
-    capture confirm file `"`statusfile'"'
+    capture confirm file `"`macval(statusfile)'"'
     if _rc {
         display as error "surveye: Stata could not start the installed Java engine"
         if `java_rc' display as error `"javacall returned code `java_rc'; its diagnostic is shown above."'
@@ -1528,11 +1557,11 @@ program define _surveye_invoke, rclass
             display as error "In particular, it may not contain the required Stata bridge entry point."
         }
         local hasdiagnostics = 0
-        if `"`diagnostics'"' != "" {
-            capture confirm file `"`diagnostics'"'
+        if `"`macval(diagnostics)'"' != "" {
+            capture confirm file `"`macval(diagnostics)'"'
             if !_rc local hasdiagnostics = 1
         }
-        if `hasdiagnostics' display as error `"See diagnostics: `diagnostics'"'
+        if `hasdiagnostics' display as error `"See diagnostics: `macval(diagnostics)'"'
         else if `java_rc' {
             display as error "This failure occurred before engine diagnostics could be written."
             display as error "Reinstall the complete package, type {bf:discard}, and try again."
@@ -1542,12 +1571,12 @@ program define _surveye_invoke, rclass
         exit 499
     }
 
-    capture noisily _surveye_read_status using `"`statusfile'"'
+    capture noisily _surveye_read_status using `"`macval(statusfile)'"'
     local status_rc = _rc
     if `status_rc' {
-        if `"`diagnostics'"' != "" {
-            capture confirm file `"`diagnostics'"'
-            if !_rc display as error `"See diagnostics: `diagnostics'"'
+        if `"`macval(diagnostics)'"' != "" {
+            capture confirm file `"`macval(diagnostics)'"'
+            if !_rc display as error `"See diagnostics: `macval(diagnostics)'"'
         }
         exit `status_rc'
     }
@@ -1555,7 +1584,7 @@ program define _surveye_invoke, rclass
 
     if `java_rc' {
         display as error `"surveye: Java engine returned code `java_rc'"'
-        if `"`diagnostics'"' != "" display as error `"See diagnostics: `diagnostics'"'
+        if `"`macval(diagnostics)'"' != "" display as error `"See diagnostics: `macval(diagnostics)'"'
         exit 499
     }
 end
@@ -1594,7 +1623,7 @@ program define _surveye_read_status, rclass
     local gps_candidates ""
 
     tempname fh
-    file open `fh' using `"`using'"', read text
+    file open `fh' using `"`macval(using)'"', read text
     file read `fh' line
     while r(eof) == 0 {
         local tab = char(9)
@@ -1603,33 +1632,33 @@ program define _surveye_read_status, rclass
             local key = lower(strtrim(substr(`"`macval(line)'"', 1, `pos' - 1)))
             local value = substr(`"`macval(line)'"', `pos' + 1, .)
 
-            if `"`key'"' == "success"       local success `"`macval(value)'"'
-            else if `"`key'"' == "message"        local message `"`macval(value)'"'
-            else if `"`key'"' == "title"          local title `"`macval(value)'"'
-            else if `"`key'"' == "n"              local N `"`macval(value)'"'
-            else if inlist(`"`key'"', "k_charted", "k_chartable") local k_charted `"`macval(value)'"'
-            else if `"`key'"' == "k_panels"       local k_panels `"`macval(value)'"'
-            else if `"`key'"' == "k_families"     local k_families `"`macval(value)'"'
-            else if `"`key'"' == "k_comparisons"  local k_comparisons `"`macval(value)'"'
-            else if `"`key'"' == "k_skipped"      local k_skipped `"`macval(value)'"'
-            else if `"`key'"' == "k_sections"     local k_sections `"`macval(value)'"'
-            else if `"`key'"' == "k_filters"      local k_filters `"`macval(value)'"'
-            else if `"`key'"' == "k_questions"    local k_questions `"`macval(value)'"'
-            else if `"`key'"' == "chartvars"      local chartvars `"`macval(value)'"'
-            else if `"`key'"' == "skippedvars"    local skippedvars `"`macval(value)'"'
-            else if `"`key'"' == "filters"        local filters `"`macval(value)'"'
-            else if `"`key'"' == "sections"       local sections `"`macval(value)'"'
-            else if `"`key'"' == "warnings"       local warnings `"`macval(value)'"'
-            else if `"`key'"' == "weighted"       local weighted `"`macval(value)'"'
-            else if `"`key'"' == "has_map"        local has_map `"`macval(value)'"'
-            else if `"`key'"' == "map_n"          local map_N `"`macval(value)'"'
-            else if `"`key'"' == "map_missing"    local map_missing `"`macval(value)'"'
-            else if `"`key'"' == "map_outside"    local map_outside `"`macval(value)'"'
-            else if `"`key'"' == "engine_version" local engine_version `"`macval(value)'"'
-            else if `"`key'"' == "output"         local output `"`macval(value)'"'
-            else if `"`key'"' == "questionnaire"  local questionnaire `"`macval(value)'"'
-            else if `"`key'"' == "filter_candidates" local filter_candidates `"`macval(value)'"'
-            else if `"`key'"' == "gps_candidates" local gps_candidates `"`macval(value)'"'
+            if `"`key'"' == "success"       local success : copy local value
+            else if `"`key'"' == "message"        local message : copy local value
+            else if `"`key'"' == "title"          local title : copy local value
+            else if `"`key'"' == "n"              local N : copy local value
+            else if inlist(`"`key'"', "k_charted", "k_chartable") local k_charted : copy local value
+            else if `"`key'"' == "k_panels"       local k_panels : copy local value
+            else if `"`key'"' == "k_families"     local k_families : copy local value
+            else if `"`key'"' == "k_comparisons"  local k_comparisons : copy local value
+            else if `"`key'"' == "k_skipped"      local k_skipped : copy local value
+            else if `"`key'"' == "k_sections"     local k_sections : copy local value
+            else if `"`key'"' == "k_filters"      local k_filters : copy local value
+            else if `"`key'"' == "k_questions"    local k_questions : copy local value
+            else if `"`key'"' == "chartvars"      local chartvars : copy local value
+            else if `"`key'"' == "skippedvars"    local skippedvars : copy local value
+            else if `"`key'"' == "filters"        local filters : copy local value
+            else if `"`key'"' == "sections"       local sections : copy local value
+            else if `"`key'"' == "warnings"       local warnings : copy local value
+            else if `"`key'"' == "weighted"       local weighted : copy local value
+            else if `"`key'"' == "has_map"        local has_map : copy local value
+            else if `"`key'"' == "map_n"          local map_N : copy local value
+            else if `"`key'"' == "map_missing"    local map_missing : copy local value
+            else if `"`key'"' == "map_outside"    local map_outside : copy local value
+            else if `"`key'"' == "engine_version" local engine_version : copy local value
+            else if `"`key'"' == "output"         local output : copy local value
+            else if `"`key'"' == "questionnaire"  local questionnaire : copy local value
+            else if `"`key'"' == "filter_candidates" local filter_candidates : copy local value
+            else if `"`key'"' == "gps_candidates" local gps_candidates : copy local value
         }
         file read `fh' line
     }
