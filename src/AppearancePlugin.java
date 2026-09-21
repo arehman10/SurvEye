@@ -96,7 +96,7 @@ public final class AppearancePlugin {
                 .append(".brandbar,.topline{display:none!important}\n");
         if ("editorial".equals(theme)) {
             css.append("body[data-surveye-finish=\"editorial\"]:not([data-theme=\"dark\"]){\n")
-                    .append("  --navy:#002244;--blue:#009fda;--cyan:#009fda;--gold:#fdb714;--green:#00a887;\n")
+                    .append("  --navy:#002244;--blue:#0071bc;--cyan:#009fda;--gold:#fdb714;--green:#14866d;\n")
                     .append("  --coral:#e5552b;--purple:#7c5ba6;--paper:#fbfaf6;--card:#fff;--ink:#16202e;\n")
                     .append("  --muted:#5a6473;--line:#e6e1d5;--soft:#f3f0e8;\n")
                     .append("  --shadow:0 1px 2px rgba(0,34,68,.04),0 10px 30px rgba(0,34,68,.07);--radius:16px;\n")
@@ -117,7 +117,6 @@ public final class AppearancePlugin {
                     .append("body[data-surveye-finish=\"editorial\"] .story{margin-top:34px;border-top:4px solid var(--navy)}\n")
                     .append("body[data-surveye-finish=\"editorial\"] .story>summary{padding:14px 3px 12px}\n")
                     .append("body[data-surveye-finish=\"editorial\"] .panel{padding:17px 18px 15px;border-color:rgba(0,34,68,.10);box-shadow:0 1px 2px rgba(0,34,68,.035),0 8px 24px rgba(0,34,68,.055)}\n")
-                    .append("body[data-surveye-finish=\"editorial\"] .panel-title{font-size:13.75px}\n")
                     .append("body[data-surveye-finish=\"editorial\"] .footer{margin-top:62px}\n");
         }
 

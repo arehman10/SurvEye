@@ -446,8 +446,10 @@ final class DashboardBuilder {
             if (numericStatistic && !config.demo && (table == null || !table.mostlyNumeric(variable))) {
                 throw new IllegalArgumentException("tablestats(" + statistic + ") requires numeric data: " + requestedVariable + ".");
             }
-            ensureAuxiliaryMetadata(model, spec, table, config, customNames, variable,
-                    numericStatistic || (!config.demo && table != null && table.mostlyNumeric(variable)) ? "hist" : "bar");
+            // Coded categories are numeric in CSV exports. Preserve their
+            // questionnaire semantics so auto uses the same statistic whether
+            // the variable has a chart or appears only in the summary table.
+            ensureAuxiliaryMetadata(model, spec, table, config, customNames, variable, "table");
             VariableMeta meta = model.metadata.get(variable);
             if (numericStatistic && meta != null && "completion".equals(meta.kind)) {
                 throw new IllegalArgumentException("tablestats(" + statistic
@@ -466,7 +468,7 @@ final class DashboardBuilder {
     }
 
     private static List<String> splitTableEntries(String raw, String option) {
-        String cleaned = stripOuterQuotes(raw);
+        String cleaned = "tablelabels".equals(option) ? raw : stripOuterQuotes(raw);
         String[] parts = cleaned.split("\\|", -1);
         List<String> output = new ArrayList<String>(parts.length);
         for (String part : parts) {
@@ -512,6 +514,12 @@ final class DashboardBuilder {
         applyQuestionOverrides(question, table, config);
         String kind = "filter".equals(preferredKind) ? "filter"
                 : ("numeric".equals(question.type) ? "hist" : preferredKind);
+        if ("table".equals(preferredKind)) {
+            kind = chartKind(question, table, lowerSet(Util.splitWords(config.bars)),
+                    lowerSet(Util.splitWords(config.donuts)), lowerSet(Util.splitWords(config.histograms)),
+                    lowerSet(Util.splitWords(config.discreteVariables)), lowerSet(Util.splitWords(config.continuousVariables)),
+                    config, true);
+        }
         model.metadata.put(variable, metadata(question, kind, table, config));
     }
 
@@ -733,7 +741,7 @@ final class DashboardBuilder {
         return out;
     }
 
-    private static boolean looksYesNo(Question q) {
+    static boolean looksYesNo(Question q) {
         List<QuestionOption> options = positiveOptions(q);
         if (options.size() != 2) return false;
         boolean yes = false, no = false;

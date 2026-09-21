@@ -25,6 +25,29 @@
   function optSig(q){return JSON.stringify((q.opts||[]).map(function(o){return [o[0],(o[1]||"").toLowerCase()];}));}
   function grouped(v){return state.groups.some(function(g){return g.members.indexOf(v)>=0;});}
   function toggleIn(list,v){var i=list.indexOf(v);if(i>=0)list.splice(i,1);else list.push(v);}
+  // A deselected or removed questionnaire field must not survive invisibly in
+  // emitted options. Reconcile persisted configurations before building the UI.
+  function reconcileSelection(){
+    function unique(values){return Array.isArray(values)?values.filter(function(v,i){return values.indexOf(v)===i;}):[];}
+    state.sel=unique(state.sel).filter(function(v){return byVar[v]&&!byVar[v].repeat;});
+    if(!state.kind||typeof state.kind!=="object")state.kind={};
+    Object.keys(state.kind).forEach(function(v){if(!isSel(v))delete state.kind[v];});
+    function single(v){return isSel(v)&&byVar[v].type==="single";}
+    state.filters=unique(state.filters).filter(single);
+    state.usdVars=unique(state.usdVars).filter(function(v){return isSel(v)&&byVar[v].type==="numeric";});
+    state.groups=(Array.isArray(state.groups)?state.groups:[]).filter(function(g){return g&&typeof g.label==="string";});
+    state.groups.forEach(function(g){g.members=unique(g.members).filter(single);});
+    if(!state.cmp||typeof state.cmp!=="object")state.cmp={members:[],by:"",levels:[],title:""};
+    state.cmp.members=unique(state.cmp.members).filter(function(v){return single(v)&&byVar[v].binary&&!grouped(v);});
+    if(!single(state.cmp.by)||(byVar[state.cmp.by].opts||[]).length<2)state.cmp.by="";
+    var options=state.cmp.by?byVar[state.cmp.by].opts:[];
+    state.cmp.levels=unique(state.cmp.levels).map(function(v){
+      var exact=options.filter(function(o){return o[0]===v;})[0];
+      var legacy=options.filter(function(o){return o[1]===v;})[0];
+      return exact?exact[0]:legacy?legacy[0]:null;
+    }).filter(function(v){return v!==null;});
+  }
+  reconcileSelection();
 
   // ---------------------------------------------------------------- layout
   var app=document.getElementById("app");
@@ -200,11 +223,13 @@
       del.addEventListener("click",function(){state.groups.splice(gi,1);refresh();});
       top.appendChild(name);top.appendChild(del);item.appendChild(top);
       var sig=g.members.length?optSig(byVar[g.members[0]]):null;
+      var section=g.members.length?byVar[g.members[0]].section:null;
       var eligible=selected().filter(function(q){
         return q.type==="single"&&(q.opts||[]).length&&
           state.cmp.members.indexOf(q.v)<0&&
           (!grouped(q.v)||g.members.indexOf(q.v)>=0)&&
-          (!sig||optSig(q)===sig);});
+          (!sig||optSig(q)===sig)&&
+          (section===null||q.section===section);});
       var mem=el("div","gmembers");
       mem.appendChild(chipRow(eligible.map(function(q){return{v:q.v,label:q.v,title:q.label};}),
         g.members,function(v){toggleIn(g.members,v);refresh();}));
@@ -221,7 +246,7 @@
 
     // Comparison ---------------------------------------------------------
     var pCmp=panel("Comparison","Members\u2019 affirmative shares, side by side across a grouping variable.");
-    var cmpEligible=selected().filter(function(q){return q.type==="single"&&!grouped(q.v);});
+    var cmpEligible=selected().filter(function(q){return q.type==="single"&&q.binary&&!grouped(q.v);});
     pCmp.appendChild(el("label","field","Members").firstChild||el("span"));
     var fm=el("div","field");fm.appendChild(el("label","","Members"));
     fm.appendChild(chipRow(cmpEligible.map(function(q){return{v:q.v,label:q.v,title:q.label};}),
@@ -240,7 +265,7 @@
       var needsLevels=opts.length>5;
       if(needsLevels||state.cmp.levels.length){
         var fl=el("div","field");fl.appendChild(el("label","","Levels (2\u20135, in order)"));
-        fl.appendChild(chipRow(opts.map(function(o){return{v:o[1]||o[0],label:o[1]||o[0]};}),
+        fl.appendChild(chipRow(opts.map(function(o){return{v:o[0],label:o[1]||o[0]};}),
           state.cmp.levels,function(v){
             if(state.cmp.levels.indexOf(v)<0&&state.cmp.levels.length>=5)return;
             toggleIn(state.cmp.levels,v);refresh();},true));
@@ -312,13 +337,20 @@
     var msgs=[];
     if(!state.sel.length)msgs.push("Select at least one variable.");
     state.groups.forEach(function(g){
-      if(g.members.length===1)msgs.push("Group needs two members.");
+      if(g.members.length&&(g.members.length<2||g.members.length>20))msgs.push("Group needs 2–20 members.");
+      if(g.members.length&&g.members.some(function(v){return byVar[v].section!==byVar[g.members[0]].section;}))
+        msgs.push("Group members must be in the same section.");
       if(g.members.length&&!g.label.trim())msgs.push("Group needs a label.");});
     if(state.cmp.members.length&&!state.cmp.by)msgs.push("Comparison needs compare-by.");
+    if(state.cmp.members.length&&(state.cmp.members.length<2||state.cmp.members.length>12))
+      msgs.push("Comparison needs 2–12 members.");
+    if(state.cmp.members.some(function(v){return !!state.kind[v];}))
+      msgs.push("Comparison members need chart: auto.");
     if(state.cmp.by){var n=((byVar[state.cmp.by]||{}).opts||[]).length;
       if(n>5&&(state.cmp.levels.length<2||state.cmp.levels.length>5))
         msgs.push("Pick 2\u20135 comparison levels.");}
-    if(state.usdVars.length&&!state.usdRate)msgs.push("USD needs a rate.");
+    if(state.usdVars.length&&(!isFinite(Number(state.usdRate))||Number(state.usdRate)<=0))
+      msgs.push("USD needs a finite rate greater than zero.");
     return msgs;
   }
   function stataCommand(){
@@ -337,7 +369,7 @@
     if(state.cmp.members.length&&state.cmp.by){
       parts.push("compare("+state.cmp.members.join(" ")+")");
       parts.push("compareby("+state.cmp.by+")");
-      if(state.cmp.levels.length)parts.push("comparelevels("+sq(state.cmp.levels.join(" "))+")");
+      if(state.cmp.levels.length)parts.push("comparelevels("+sq(state.cmp.levels.join("|"))+")");
       if(state.cmp.title)parts.push("comparetitle("+sq(state.cmp.title)+")");
     }
     ["bars","donut","hist","discrete","continuous"].forEach(function(k){
@@ -368,7 +400,7 @@
     if(state.cmp.members.length&&state.cmp.by){
       lines.push(["compare",state.cmp.members.join(" ")]);
       lines.push(["compareby",state.cmp.by]);
-      if(state.cmp.levels.length)lines.push(["comparelevels",state.cmp.levels.join(" ")]);
+      if(state.cmp.levels.length)lines.push(["comparelevels",state.cmp.levels.join("|")]);
       if(state.cmp.title)lines.push(["comparetitle",state.cmp.title]);
     }
     ["bars","donut","hist","discrete","continuous"].forEach(function(k){
@@ -381,6 +413,7 @@
       lines.push(["usdrate",state.usdRate]);
       if(state.currency)lines.push(["currency",state.currency]);
     }
+    if(state.theme!=="worldbank")lines.push(["theme",state.theme]);
     if(state.lang!=="auto")lines.push(["uilanguage",state.lang]);
     return lines.map(function(l){return l[0]+"\t"+l[1];}).join("\n")+"\n";
   }
@@ -439,6 +472,6 @@
   btnTsv.addEventListener("click",function(){
     download(slug(state.title)+"-config.tsv",tsvConfig(),"text/tab-separated-values");});
 
-  function refresh(){buildRail();syncRows();refreshCommandOnly();}
+  function refresh(){reconcileSelection();buildRail();syncRows();refreshCommandOnly();}
   buildRows();setTab(state.tab||"stata");refresh();
 })();

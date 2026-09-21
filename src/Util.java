@@ -289,10 +289,50 @@ final class Util {
     static String dataUri(String filename) throws IOException {
         if (filename == null || filename.trim().isEmpty()) return null;
         Path path = Paths.get(filename);
-        byte[] bytes = Files.readAllBytes(path);
         String lower = path.getFileName().toString().toLowerCase(Locale.ROOT);
+        if (!lower.matches(".*\\.(png|jpe?g|gif|svg)$")) {
+            throw new IllegalArgumentException("logo() requires a PNG, JPEG, GIF, or SVG image.");
+        }
+        byte[] bytes = Files.readAllBytes(path);
         String mime = lower.endsWith(".svg") ? "image/svg+xml" : lower.endsWith(".jpg") || lower.endsWith(".jpeg")
                 ? "image/jpeg" : lower.endsWith(".gif") ? "image/gif" : "image/png";
+        try {
+            if (lower.endsWith(".svg")) {
+                javax.xml.parsers.DocumentBuilderFactory factory = javax.xml.parsers.DocumentBuilderFactory.newInstance();
+                factory.setNamespaceAware(true);
+                factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+                factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+                factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+                factory.setXIncludeAware(false);
+                factory.setExpandEntityReferences(false);
+                javax.xml.parsers.DocumentBuilder builder = factory.newDocumentBuilder();
+                builder.setErrorHandler(new org.xml.sax.helpers.DefaultHandler() {
+                    @Override public void error(org.xml.sax.SAXParseException e) throws org.xml.sax.SAXException { throw e; }
+                    @Override public void fatalError(org.xml.sax.SAXParseException e) throws org.xml.sax.SAXException { throw e; }
+                });
+                org.w3c.dom.Element root = builder.parse(new java.io.ByteArrayInputStream(bytes)).getDocumentElement();
+                if (!"svg".equals(root.getLocalName()) || (root.getNamespaceURI() != null
+                        && !"http://www.w3.org/2000/svg".equals(root.getNamespaceURI()))) {
+                    throw new IOException("The XML document is not an SVG image.");
+                }
+            } else {
+                try (javax.imageio.stream.ImageInputStream input = javax.imageio.ImageIO.createImageInputStream(
+                        new java.io.ByteArrayInputStream(bytes))) {
+                    java.util.Iterator<javax.imageio.ImageReader> readers = javax.imageio.ImageIO.getImageReaders(input);
+                    if (!readers.hasNext()) throw new IOException("Unrecognized image content.");
+                    javax.imageio.ImageReader reader = readers.next();
+                    try {
+                        String format = reader.getFormatName().toLowerCase(Locale.ROOT);
+                        String expected = mime.substring("image/".length());
+                        if (!format.equals(expected)) throw new IOException("Image content does not match its filename extension.");
+                        reader.setInput(input);
+                        if (reader.read(0) == null) throw new IOException("Empty image.");
+                    } finally { reader.dispose(); }
+                }
+            }
+        } catch (Exception e) {
+            throw new IllegalArgumentException("logo() requires a valid PNG, JPEG, GIF, or SVG image: " + path.getFileName() + ".", e);
+        }
         return "data:" + mime + ";base64," + Base64.getEncoder().encodeToString(bytes);
     }
 

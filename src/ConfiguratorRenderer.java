@@ -50,7 +50,8 @@ final class ConfiguratorRenderer {
                     .append(",\"label\":").append(Util.json(question.label == null ? question.variable : question.label))
                     .append(",\"type\":").append(Util.json(question.type == null ? "text" : question.type))
                     .append(",\"rawType\":").append(Util.json(question.rawType == null ? "" : question.rawType))
-                    .append(",\"section\":").append(question.sectionNumber);
+                    .append(",\"section\":").append(question.sectionNumber)
+                    .append(",\"binary\":").append(DashboardBuilder.looksYesNo(question));
             if (question.subsection != null && !question.subsection.isEmpty()) {
                 json.append(",\"sub\":").append(Util.json(question.subsection));
             }

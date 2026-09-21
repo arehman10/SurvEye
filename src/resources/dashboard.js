@@ -619,13 +619,24 @@
     var sorted=points.map(function(point){return point.value;}).sort(function(a,b){return a-b;}),mean=weightedMean(points),q1=weightedQuantile(points,.25),medianValue=weightedQuantile(points,.5),q3=weightedQuantile(points,.75),sd=weightedStd(points,mean,totalWeight),threshold=meanPlusThreeSdValue({mean:mean,sd:sd});
     return{n:points.length,missing:Math.max(0,sourceLength-points.length),mean:mean,sd:sd,min:sorted[0],max:sorted[sorted.length-1],q1:q1,q3:q3,median:medianValue,meanPlusThreeSd:threshold,totalWeight:totalWeight};
   }
+  function numericStatisticText(variable,stats){
+    return (weightsActive()?tr("weightedMedian","weighted median"):tr("median","median"))+" "+metricFmt(variable,stats.median,2)+" · "+(weightsActive()?tr("weightedMean","weighted mean"):tr("mean","mean"))+" "+metricFmt(variable,stats.mean,2)+" · "+tr("rawN","raw n")+"="+localNumber(stats.n);
+  }
   function refreshNumericStats(source,canvases){
     source=source||rows();var refreshed=dictionary(),explicit=canvases!==undefined&&canvases!==null,nodes=explicit?canvases:document.querySelectorAll("canvas.chart");
     Array.prototype.forEach.call(nodes,function(canvas){
       var kind=canvas.getAttribute("data-kind"),variable=canvas.getAttribute("data-variable");
       if((kind!=="hist"&&kind!=="discrete")||!variable||owns(refreshed,variable))return;
       if(!explicit){var panel=canvas.closest(".panel"),pane=panel&&panel.querySelector('[data-panel-view-pane="stats"]');if(!pane||!pane.classList.contains("is-active"))return;}
-      var summary=numericStatistics(numericValues(variable,source),source.length);refreshed[variable]=summary;renderNumericStats(variable,summary);
+      var points=numericValues(variable,source),summary=numericStatistics(points,source.length);refreshed[variable]=summary;renderNumericStats(variable,summary);
+      // The card header and accessible description remain visible/relevant
+      // while its distribution canvas is hidden, so refresh them together.
+      var message=summary?numericStatisticText(variable,summary):weightsActive()&&points.length?tr("noPositiveWeight","No positive weight for this selection"):tr("noValidNumeric","No valid numeric values for this selection"),headline=summary?message:"";
+      if(summary&&summary.n<2&&kind==="hist"){headline=tr("validN","valid n")+"=1 · "+tr("value","value")+" "+metricFmt(variable,points[0].value,2);message=tr("oneValidValue","One valid value; open Stats for its summary");}
+      statistic(variable,headline);clearSummary(variable,message);describe(canvas,message);
+      // Restore the distribution's own grouped/bin description on the next
+      // visible render, even when switching tabs did not change the filters.
+      delete state.renderedRevision[canvas.id];
     });
     return refreshed;
   }
@@ -656,7 +667,7 @@
     if(!allInteger){var integerMessage=tr("discreteNeedsIntegers","This discrete chart requires integer values; use a histogram for continuous values");setEmpty(canvas,true,integerMessage);statistic(variable,tr("validN","valid n")+"="+localNumber(points.length));clearSummary(variable,integerMessage);describe(canvas,integerMessage);return;}
     var plan=discreteDistributionPlan(points,stats,compact);if(!plan){var rangeMessage=tr("discreteRangeTooWide","The integer distribution could not be displayed");setEmpty(canvas,true,rangeMessage);statistic(variable,tr("validN","valid n")+"="+localNumber(points.length));clearSummary(variable,rangeMessage);describe(canvas,rangeMessage);return;}
     var zeroGaps=0;plan.bins.forEach(function(bin){if(bin.y===0)zeroGaps++;});
-    setEmpty(canvas,false);var statisticText=(weightsActive()?tr("weightedMedian","weighted median"):tr("median","median"))+" "+metricFmt(variable,stats.median,2)+" · "+(weightsActive()?tr("weightedMean","weighted mean"):tr("mean","mean"))+" "+metricFmt(variable,stats.mean,2)+" · "+tr("rawN","raw n")+"="+localNumber(stats.n);statistic(variable,statisticText);
+    setEmpty(canvas,false);var statisticText=numericStatisticText(variable,stats);statistic(variable,statisticText);
     var nonzero=[];plan.bins.forEach(function(bin){if(bin.y>0){var label=plan.exact?axisNumber(bin.x,1):axisNumber(bin.lower,plan.binWidth)+"–"+axisNumber(bin.upper,plan.binWidth);nonzero.push(label+": "+fmt(bin.y,weightsActive()?1:0)+" ("+tr("rawN","raw n")+"="+localNumber(bin.raw)+")");}});var message=statisticText+"; "+tr("integerRange","integer range")+" "+plan.minimum+"–"+plan.maximum+(plan.exact?"":"; "+tr("integerBinWidth","integer bin width")+" "+plan.binWidth)+"; "+localNumber(zeroGaps)+" "+tr("zeroFrequencyValues",plan.exact?"zero-frequency values":"zero-frequency bins")+"; "+nonzero.join("; ");clearSummary(variable,message);describe(canvas,message);canvas.dataset.discreteMin=""+plan.minimum;canvas.dataset.discreteMax=""+plan.maximum;canvas.dataset.discreteBinWidth=""+plan.binWidth;canvas.dataset.zeroFrequencyGaps=""+zeroGaps;var guide=meanPlusThreeSd(stats,plan.minimum,plan.maximum);canvas.dataset.threeSdGuide=guide===null?"":""+guide;
     var discreteColor=rgba(css("--chart-purple","#7c5ba6"),.9),xPadding=plan.binWidth/2;
     state.charts[canvas.id]=new Chart(canvas,{type:"bar",plugins:[threeSdGuide],data:{datasets:[{data:plan.bins,parsing:{xAxisKey:"x",yAxisKey:"y"},backgroundColor:prefAccent(variable,discreteColor),borderRadius:plan.binWidth===1?2:3,borderSkipped:false,categoryPercentage:.9,barPercentage:.96,maxBarThickness:plan.binWidth===1?(compact?14:20):(compact?28:36)}]},options:{maintainAspectRatio:false,layout:{padding:{top:22}},scales:{x:{type:"linear",min:plan.minimum-xPadding,max:plan.maximum+xPadding,offset:false,ticks:{stepSize:plan.tickStep,maxTicksLimit:compact?9:13,includeBounds:false,maxRotation:0,minRotation:0,precision:0,font:{size:9},callback:function(value){return axisNumber(value,1);}},grid:{display:false},border:{display:false},title:{display:!compact,text:(plan.exact?tr("integerValue","Integer value"):tr("integerValueBins","Integer value (grouped)"))+(currencyCode(variable)?" ("+currencyCode(variable)+")":"")}},y:{beginAtZero:true,ticks:{maxTicksLimit:compact?4:6,font:{size:9},precision:weightsActive()?undefined:0},border:{display:false},title:{display:!compact,text:weightsActive()?tr("weightedFrequency","weighted frequency"):tr("observations","observations")},grid:{color:css("--chart-grid","rgba(90,100,115,.13)")}}},plugins:{threeSdGuide:{mean:stats.mean,sd:stats.sd,minimum:plan.minimum,maximum:plan.maximum,variable:variable},legend:{display:false},tooltip:{callbacks:{title:function(items){var datum=items[0].raw;return plan.exact?tr("value","Value")+" "+metricFmt(variable,datum.x,0):tr("values","Values")+" "+metricFmt(variable,datum.lower,0)+"–"+metricFmt(variable,datum.upper,0);},label:function(ctx){var datum=ctx.raw;return " "+fmt(datum.y,weightsActive()?1:0)+" "+(weightsActive()?tr("weightedFrequency","weighted frequency"):tr("observations","observations"))+"; "+tr("rawN","raw n")+"="+localNumber(datum.raw);}}}}}});
@@ -665,7 +676,7 @@
     var source=rows(),points=numericValues(variable,source);destroy(canvas.id);clearSummary(variable);
     var totalPointWeight=points.reduce(function(sum,point){return sum+point.w;},0);
     if(!points.length||(weightsActive()&&totalPointWeight<=0)){var noDataMessage=weightsActive()&&points.length?tr("noPositiveWeight","No positive weight for this selection"):tr("noValidNumeric","No valid numeric values for this selection");renderNumericStats(variable,null);setEmpty(canvas,true,noDataMessage);statistic(variable,"");clearSummary(variable,noDataMessage);describe(canvas,noDataMessage);return;}
-    var stats=numericStatistics(points,source.length),sorted=points.map(function(p){return p.value;}).sort(function(a,b){return a-b;}),med=stats.median,mean=stats.mean,q1=stats.q1,q3=stats.q3,iqr=q3-q1,low=stats.min,high=stats.max;renderNumericStats(variable,stats);
+    var stats=numericStatistics(points,source.length),q1=stats.q1,q3=stats.q3,iqr=q3-q1,low=stats.min,high=stats.max;renderNumericStats(variable,stats);
     if(points.length<2){var oneMessage=tr("oneValidValue","One valid value; open Stats for its summary");setEmpty(canvas,true,oneMessage);statistic(variable,tr("validN","valid n")+"=1 · "+tr("value","value")+" "+metricFmt(variable,points[0].value,2));clearSummary(variable,oneMessage);describe(canvas,oneMessage);return;}
     setEmpty(canvas,false);if(high<=low){low=stats.min-.5;high=stats.max+.5;}
     var span=high-low,width=iqr>0?2*iqr/Math.cbrt(points.length):span/Math.sqrt(points.length),minBins=compact?6:8,maxBins=compact?14:28,proposedBins=Math.max(minBins,Math.min(maxBins,Math.round(span/(width||1))));if(!isFinite(proposedBins)||proposedBins<1)proposedBins=compact?10:12;
@@ -676,7 +687,7 @@
     points.forEach(function(p){var index=Math.floor((p.value-alignedLow)/step);if(index>=bins)index=bins-1;if(index<0)index=0;counts[index]+=p.w;raw[index]++;});
     for(var b=0;b<bins;b++){var binLow=alignedLow+b*step,binHigh=binLow+step;histogramData.push({x:binLow+step/2,y:counts[b],lower:binLow,upper:binHigh,raw:raw[b]});}
     low=alignedLow;high=alignedHigh;var guide=meanPlusThreeSd(stats,low,high);canvas.dataset.threeSdGuide=guide===null?"":""+guide;
-    var statisticText=(weightsActive()?tr("weightedMedian","weighted median"):tr("median","median"))+" "+metricFmt(variable,med,2)+" · "+(weightsActive()?tr("weightedMean","weighted mean"):tr("mean","mean"))+" "+metricFmt(variable,mean,2)+" · "+tr("rawN","raw n")+"="+localNumber(sorted.length);
+    var statisticText=numericStatisticText(variable,stats);
     statistic(variable,statisticText);clearSummary(variable,statisticText);describe(canvas,statisticText);
     var tickStep=niceNumericStep((high-low)/(compact?6:9),false,false);
     state.charts[canvas.id]=new Chart(canvas,{type:"bar",plugins:[threeSdGuide],data:{datasets:[{data:histogramData,parsing:{xAxisKey:"x",yAxisKey:"y"},backgroundColor:prefsFor(variable).color?rgba(prefsFor(variable).color,.9):rgba(css("--chart-purple","#7c5ba6"),.9),borderRadius:2,categoryPercentage:1,barPercentage:1}]},options:{maintainAspectRatio:false,layout:{padding:{top:25}},scales:{x:{type:"linear",min:low,max:high,offset:false,ticks:{stepSize:tickStep,maxTicksLimit:compact?7:10,includeBounds:false,maxRotation:0,minRotation:0,font:{size:9},callback:function(value){return axisNumber(value,tickStep);}},grid:{display:false},border:{display:false},title:{display:!compact,text:tr("value","Value")+(currencyCode(variable)?" ("+currencyCode(variable)+")":"")}},y:{beginAtZero:true,ticks:{maxTicksLimit:compact?4:6,font:{size:9},precision:0},border:{display:false},title:{display:!compact,text:weightsActive()?tr("weightedFrequency","weighted frequency"):tr("observations","observations")},grid:{color:css("--chart-grid","rgba(90,100,115,.13)")}}},plugins:{threeSdGuide:{mean:stats.mean,sd:stats.sd,minimum:low,maximum:high,variable:variable},legend:{display:false},tooltip:{callbacks:{title:function(items){var datum=items[0].raw;return metricFmt(variable,datum.lower,stepDigits(step))+" "+tr("to","to")+" "+metricFmt(variable,datum.upper,stepDigits(step));},label:function(ctx){return " "+fmt(ctx.raw.y,1)+" "+(weightsActive()?tr("weighted","weighted"):tr("observations","observations"))+"; "+tr("rawN","raw n")+"="+localNumber(ctx.raw.raw);}}}}}});
@@ -1149,11 +1160,12 @@
     setTimeout(function(){button.textContent=button.dataset.label;button.classList.remove("is-flashed");},1600);
   }
   function fallbackCopy(text,done){
+    var area;
     try{
-      var area=document.createElement("textarea");area.value=text;area.setAttribute("readonly","");
+      area=document.createElement("textarea");area.value=text;area.setAttribute("readonly","");
       area.style.position="fixed";area.style.opacity="0";document.body.appendChild(area);
-      area.select();document.execCommand("copy");document.body.removeChild(area);done();
-    }catch(ignore){}
+      area.select();if(document.execCommand("copy"))done();
+    }catch(ignore){}finally{if(area&&area.parentNode)area.parentNode.removeChild(area);}
   }
   function copyViewLink(){
     var button=document.getElementById("copy-view");if(!button)return;
@@ -1338,6 +1350,13 @@
     }catch(error){console.error("export failed",variable,error);}
   }
   // Per-panel customization popover: type, accent color, font scale, labels.
+  function positionPopover(popover,anchor){
+    var scrollX=window.scrollX||0,scrollY=window.scrollY||0,
+        width=document.documentElement.clientWidth,height=document.documentElement.clientHeight||window.innerHeight;
+    popover.style.maxHeight="min(76vh,560px,"+Math.max(1,height-20)+"px)";
+    popover.style.top=Math.max(scrollY+10,Math.min(anchor.bottom+scrollY+6,scrollY+height-popover.offsetHeight-10))+"px";
+    popover.style.left=Math.max(scrollX+10,Math.min(scrollX+(rtl?anchor.right-popover.offsetWidth:anchor.left),scrollX+width-popover.offsetWidth-10))+"px";
+  }
   function wireCustomize(){
     var popover=null;
     function close(){if(popover&&popover.parentNode)popover.parentNode.removeChild(popover);popover=null;}
@@ -1432,14 +1451,10 @@
       reset.addEventListener("click",function(){resetPanelPrefs(variable);close();});
       var done=document.createElement("button");done.type="button";done.className="ghost-btn";
       done.textContent=tr("doneLabel","Done");
-      done.addEventListener("click",close);
+      done.addEventListener("click",function(){commitTitle();close();});
       actions.appendChild(reset);actions.appendChild(done);popover.appendChild(actions);
       document.body.appendChild(popover);
-      var anchor=button.getBoundingClientRect(),
-          top=anchor.bottom+window.scrollY+6,
-          left=Math.max(10,Math.min((rtl?anchor.right-popover.offsetWidth:anchor.left),
-            window.scrollX+document.documentElement.clientWidth-popover.offsetWidth-10));
-      popover.style.top=top+"px";popover.style.left=(left+window.scrollX*0)+"px";
+      positionPopover(popover,button.getBoundingClientRect());
       popover.setAttribute("data-variable",variable);
     }
     document.addEventListener("click",function(event){

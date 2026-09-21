@@ -16,7 +16,7 @@ import java.util.Map;
 
 /** Entry point for the Survey Solutions dashboard engine and Stata wrapper. */
 public final class SurvEye {
-    public static final String VERSION = "2.3.2";
+    public static final String VERSION = "2.3.4";
 
     private SurvEye() {}
 

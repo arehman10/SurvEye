@@ -380,7 +380,7 @@ body[data-theme="dark"] .back-to-top{background:var(--soft);color:var(--ink);bor
 
 /* Per-chart customization popover */
 .chart-popover{position:absolute;z-index:120;min-width:262px;max-width:300px;max-height:min(76vh,560px);overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 2px 4px rgba(4,26,51,.08),0 18px 44px rgba(4,26,51,.18);padding:12px 13px;font-size:12px}
-.chart-popover .popover-title{font-weight:800;letter-spacing:-.01em;color:var(--navy);margin:0 0 9px;font-size:12.5px}
+.chart-popover .popover-title{font-weight:800;letter-spacing:-.01em;color:var(--ink);margin:0 0 9px;font-size:12.5px}
 .chart-popover .popover-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:7px 0;color:var(--ink)}
 .chart-popover .popover-row>span:first-child{color:var(--muted);font-weight:650}
 .chart-popover .popover-row.stack{flex-direction:column;align-items:stretch;gap:4px}
@@ -390,7 +390,7 @@ body[data-theme="dark"] .back-to-top{background:var(--soft);color:var(--ink);bor
 .chart-popover input[type="checkbox"]{accent-color:var(--blue)}
 .chart-popover .popover-color{display:flex;align-items:center;gap:6px}
 .chart-popover .popover-clear{font-family:inherit;font-size:10px;font-weight:650;color:var(--muted);background:var(--soft);border:1px solid var(--line);border-radius:999px;padding:2px 8px;cursor:pointer}
-.chart-popover .popover-clear:hover{color:var(--navy)}
+.chart-popover .popover-clear:hover{color:var(--ink)}
 .chart-popover .popover-actions{display:flex;justify-content:flex-end;gap:7px;margin-top:11px}
 body[data-theme="dark"] .chart-popover{box-shadow:0 2px 4px rgba(0,0,0,.4),0 18px 44px rgba(0,0,0,.5)}
 html[dir="rtl"] .chart-popover .popover-actions{justify-content:flex-start}
