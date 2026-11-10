@@ -1,0 +1,29 @@
+{
+  "result": "PASS",
+  "checks": 21,
+  "assertions": [
+    "english: correct document direction",
+    "english/worldbank: 390px, filters closed and open, no page overflow",
+    "english/worldbank: 768px, filters closed and open, no page overflow",
+    "english/worldbank: 1440px, filters closed and open, no page overflow",
+    "english/dark: 390px, filters closed and open, no page overflow",
+    "english/dark: 768px, filters closed and open, no page overflow",
+    "english/dark: 1440px, filters closed and open, no page overflow",
+    "english/clean: 390px, filters closed and open, no page overflow",
+    "english/clean: 768px, filters closed and open, no page overflow",
+    "english/clean: 1440px, filters closed and open, no page overflow",
+    "english/forest: 390px, filters closed and open, no page overflow",
+    "english/forest: 768px, filters closed and open, no page overflow",
+    "english/forest: 1440px, filters closed and open, no page overflow",
+    "arabic: correct document direction",
+    "arabic/worldbank: 390px, filters closed and open, no page overflow",
+    "arabic/worldbank: 768px, filters closed and open, no page overflow",
+    "arabic/worldbank: 1440px, filters closed and open, no page overflow",
+    "urdu: correct document direction",
+    "urdu/worldbank: 390px, filters closed and open, no page overflow",
+    "urdu/worldbank: 768px, filters closed and open, no page overflow",
+    "urdu/worldbank: 1440px, filters closed and open, no page overflow"
+  ],
+  "page_errors": [],
+  "method": "Real Chromium set_content; current generated HTML, production CSS and libraries; no live tile requests."
+}

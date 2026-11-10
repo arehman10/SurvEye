@@ -54,9 +54,19 @@ cp "$ROOT"/src/resources/country_aliases.tsv "$CLASSES/resources/"
 # manifest when assembling a release.
 sed "s/^Implementation-Version:.*/Implementation-Version: $SURVEYE_VERSION/" \
   "$ROOT/MANIFEST.MF" > "$BUILD/MANIFEST.MF"
-java -m jdk.jartool/sun.tools.jar.Main \
-  cfm "$GENERIC_JAR" "$BUILD/MANIFEST.MF" \
-  -C "$CLASSES" .
+# Stamp every entry with one fixed date so that rebuilding the same source on
+# the same machine gives the same file, byte for byte. (--date needs JDK 19+;
+# older JDKs fall back to today's dates, which changes the file hash but not
+# the content fingerprint printed below.)
+JAR_DATE="2026-01-01T00:00:00Z"
+if ! java -m jdk.jartool/sun.tools.jar.Main \
+     --create --file "$GENERIC_JAR" --manifest "$BUILD/MANIFEST.MF" \
+     --date="$JAR_DATE" \
+     -C "$CLASSES" . 2>/dev/null; then
+  java -m jdk.jartool/sun.tools.jar.Main \
+    cfm "$GENERIC_JAR" "$BUILD/MANIFEST.MF" \
+    -C "$CLASSES" .
+fi
 
 # Keep the conventional CLI filename and a release-specific Stata-plugin
 # filename byte-for-byte identical.  The latter prevents an obsolete generic
@@ -65,3 +75,9 @@ cp -p "$GENERIC_JAR" "$STATA_JAR"
 
 echo "Built $GENERIC_JAR"
 echo "Built $STATA_JAR"
+
+# Two identities for the release record. The file sha256 changes with every
+# packing (dates, compression); the content fingerprint depends only on the
+# classes and resources inside, so it is the one to compare across machines.
+echo "sha256      $(sha256sum "$GENERIC_JAR" | awk '{ print $1 }')"
+echo "content     $(java "$ROOT/scripts/JarFingerprint.java" "$GENERIC_JAR" | awk '{ print $1 }')"

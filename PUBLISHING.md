@@ -1,139 +1,127 @@
 # Publishing SurvEye
 
-> This is an unpublished 2.3.1 local review candidate. Publishing instructions
-> below are for a later, separately authorized release. `release.sh` only
-> creates local archives and does not perform any remote action.
+A release goes to two places: the GitHub repository (the `net install`
+source and the code of record) and SSC (`ssc install surveye`). This page is
+the whole procedure. It names no version on purpose: the version comes from
+the `VERSION` file.
 
+Permanent repository: <https://github.com/arehman10/SurvEye>
+SSC entry: `RePEc:boc:bocode:s459823`
 
-Use this checklist for releases from the permanent public repository:
-
-<https://github.com/arehman10/SurvEye>
-
-## 1. Confirm public package metadata
-
-- Keep the repository and issue URLs synchronized in `README.md`,
-  `surveye.sthlp`, and `surveye.pkg`.
-- Keep the release date synchronized in `surveye.pkg`, `surveye.sthlp`, and
-  `CHANGELOG.md`.
-- Confirm that the `surveye` command/package name is available at SSC.
-
-## 2. Run the portable release gate
-
-From the repository root:
+## 1. Set the version
 
 ```bash
-bash ./build.sh
-sh ./tests/check_stata_source.sh
-sh ./tests/check_package.sh
-node tests/test_statistics.js
-sh ./tests/run_engine_smoke.sh
-sh ./tests/run_parser_tests.sh
-sh ./tests/run_surveycto_tests.sh
-sh ./tests/test_appearance.sh
+node scripts/bump-version.js 2.4.0          # example; uses today's date
 ```
 
-## 3. Run the licensed-Stata gate
+This edits all 15 places the version is written, or stops without changing
+anything if one of them does not look as expected. Then add a section to
+`CHANGELOG.md` in words a user understands.
 
-Use Stata 16 and the current supported Stata release. The smoke file must use
-the source directory explicitly so an older installed command cannot mask the
-candidate release:
+## 2. Build
 
-```stata
-do "tests/stata_smoke.do" "C:/path/to/surveye"
+```bash
+bash build.sh                               # Linux, macOS, Git Bash
+./tests/build_windows.ps1                   # Windows PowerShell 7
 ```
 
-Also test an installation from the staged source directory (which includes `surveye.pkg`) in a clean ado-path:
+Both write `surveye.jar` and `surveye_<version>.jar` (identical files) and
+print the file sha256 and the content fingerprint. Delete the previous
+`surveye_<old version>.jar`; the gate fails while a stale one is present.
 
-```stata
-net install surveye, from("C:/path/to/release/surveye-2.3.1-github") replace
-discard
-which surveye
-help surveye
+## 3. Run the gates
+
+Portable gate (no Stata needed):
+
+```bash
+sh tests/run_all.sh
+sh tests/run_jvm_matrix.sh                  # every installed Java runtime
 ```
 
-Build at least one real, one weighted, one Arabic/Urdu RTL, and one map-enabled
-dashboard in Stata. Open each generated file in the supported browsers. Confirm
-that default output contains no CI text or whiskers, then rerun an eligible
-categorical or multiselect bar with `ci level(90)`. Binary yes/no,
-answered/missing completion, and donut cards must remain CI-free even when
-`ci` is supplied.
+On Windows: `./tests/run_windows_tests.ps1`.
 
-For every dashboard, confirm that the search/filter toolbar starts collapsed,
-does not cover the figures on a short desktop viewport, opens with Enter and
-Space, closes with Escape, and preserves active choices. Test Reset all while
-the body is collapsed: it must clear both response filters and indicator search.
-Check the expanded state for horizontal overflow in LTR and RTL layouts and
-verify that charts and an open Leaflet map remain correctly sized afterward.
+Licensed-Stata gate, from the repository root on a machine with Stata:
+
+```powershell
+./tests/run_stata_windows.ps1 -Suite all
+node tests/verify_stata_outputs.js
+node tests/test_generated_payloads.js
+node tests/verify_stata_quotes.js
+```
+
+The portable gate proves the engine and the browser code. Only the Stata gate
+proves the command itself. A release that has passed only the first is a
+release candidate; say so in `QA_REPORT.md`.
+
+Open at least one generated dashboard in a browser: one weighted, one Arabic
+or Urdu, one with a map.
 
 ## 4. Confirm map-provider policy
 
-The Google choices mirror the keyless compatibility endpoints used by
-`esqc_gps`; they are not an authenticated Google Maps Platform integration.
-Confirm permitted use, attribution, and organizational policy for the intended
-release. Keep `basemap(osm)` documented as an alternative and review the
-OpenStreetMap tile-use policy as well. Current primary references are the
-[Google Map Tiles API documentation](https://developers.google.com/maps/documentation/tile)
-and the [OpenStreetMap tile-use policy](https://operations.osmfoundation.org/policies/tiles/).
+The Google base-map choices use keyless compatibility endpoints, not an
+authenticated Google Maps Platform integration. Confirm permitted use and
+attribution for the intended audience, and keep `basemap(osm)` documented as
+the alternative. References:
+[Google Map Tiles API](https://developers.google.com/maps/documentation/tile),
+[OpenStreetMap tile-use policy](https://operations.osmfoundation.org/policies/tiles/).
 
-## 5. Create clean archives
+## 5. Create the archives
 
 ```bash
-bash ./release.sh /path/to/release
+bash release.sh /path/to/release
 ```
 
-This creates:
+This rebuilds, reruns the portable gate, and writes:
 
-- `surveye-2.3.1.zip` — full source, tests, documentation, example, and JARs;
-- `surveye-2.3.1-github.zip` — the same clean source with its contents flat at
-  the archive root, ready to upload to the GitHub repository root;
-- `surveye-2.3.1-ssc.zip` — only the flat installable package; and
-- matching inspectable staging directories.
-
-The script builds from source, verifies the exact flat SSC inventory before
-writing any archive, excludes retired installable filenames even if they
-remain in a developer's working directory, and prints SHA-256 checksums.
+- `surveye-<version>.zip`: full source in a folder;
+- `surveye-<version>-github.zip`: the same tree, flat, for the repository root;
+- `surveye-<version>-ssc.zip`: only the files SSC installs;
+- `SHA256SUMS.txt`: checksums of the archives and jars, plus the jar's
+  content fingerprint.
 
 ## 6. Publish to GitHub
 
-- Read `GITHUB_UPLOAD.md`.
-- Upload the *contents* of `surveye-2.3.1-github.zip` to the root of the
-  `main` branch. Do not upload only the ZIP and do not add an enclosing folder.
-- Make the repository public before testing unauthenticated installation.
-- Confirm that both raw metadata URLs return plain text:
-  - <https://raw.githubusercontent.com/arehman10/SurvEye/main/stata.toc>
-  - <https://raw.githubusercontent.com/arehman10/SurvEye/main/surveye.pkg>
-- Test from a fresh Stata session:
+Preferred: a normal commit, because git also removes files.
+
+```bash
+git clone https://github.com/arehman10/SurvEye.git && cd SurvEye
+# replace the working tree with the contents of surveye-<version>-github.zip
+git add -A && git status        # expect the old versioned jar as deleted
+git commit -m "SurvEye <version>" && git push
+```
+
+If you use the web page's **Add file → Upload files** instead, read
+[GITHUB_UPLOAD.md](GITHUB_UPLOAD.md) first: the web upload never deletes, so
+retired files stay behind unless you remove them by hand.
+
+Then check, in a fresh Stata session:
 
 ```stata
 net install surveye, from("https://raw.githubusercontent.com/arehman10/SurvEye/main/") replace
 discard
 which surveye
-findfile surveye_2_3_1.jar
 help surveye
 ```
 
-## 7. Create the formal release and submit to SSC
+`which surveye` must show the new version. The **Actions** tab must show a
+green `build` run for the commit. Tag the commit `v<version>` and attach the
+archives and `SHA256SUMS.txt` to a GitHub release.
 
-- Create an annotated `v2.3.1` tag and GitHub release.
-- Attach the source and SSC archives and publish the checksums shown by the
-  release workflow.
-- Submit per the official instructions
-  (http://repec.org/bocode/s/sscsubmit.html): email the flat zip built by
-  `release.sh` (`surveye-2.3.1-ssc.zip`) to the archive maintainer
-  (baum@bc.edu). The zip must contain only `surveye.ado`, `surveye.sthlp`,
-  `surveye_2_3_1.jar`, `example.do`, `LICENSE`, and
-  `THIRDPARTY-LICENSES.md` — never `surveye.pkg` or `stata.toc` (the
-  archive generates both) and never the generic `surveye.jar` (a GitHub
-  convenience the command does not load).
-- The email must state that the submission is new, suggest the package name
-  (`surveye`), give the title line and abstract, name the author,
-  affiliation, and contact email, declare no dependencies on other SSC
-  packages, and ask that `surveye_2_3_1.jar` be installed together with the
-  ado by `net install` (the command loads it from the ado-path through
-  Stata's Java integration); `example.do`, `LICENSE`, and
-  `THIRDPARTY-LICENSES.md` can stay ancillary. A ready-to-edit draft ships
-  as `ssc_submission_email.txt` in the release staging output.
-- SSC also requires that commands run under `set varabbrev off`;
-  `tests/stata_smoke.do` sets it, so the licensed-Stata smoke run doubles as
-  that check. After the maintainer confirms, announce on Statalist as is
-  customary.
+## 7. Update SSC
+
+SSC already carries `surveye`. Email `surveye-<version>-ssc.zip` to the
+archive maintainer (Christopher F. Baum, baum@bc.edu) as an **update to the
+existing package**, and say:
+
+- the version and date;
+- that `surveye_<old version>.jar` is replaced by `surveye_<version>.jar`,
+  and that both jars in the archive must be installed with the ado-file
+  (the command loads the versioned one from the ado-path through Stata's
+  Java integration);
+- that `surveye_example.do`, `LICENSE` and `THIRDPARTY-LICENSES.md` are
+  ancillary;
+- two or three lines on what changed, taken from `CHANGELOG.md`.
+
+The archive contains no `surveye.pkg` or `stata.toc`; SSC writes its own.
+After the maintainer confirms, check `ssc install surveye, replace` and
+`which surveye` in a fresh session.

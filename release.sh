@@ -56,9 +56,12 @@ cp -p "$ROOT/$SURVEYE_RELEASE_JAR" "$WORK/$SOURCE_NAME/"
 rsync -a "$WORK/$SOURCE_NAME/" "$WORK/$GITHUB_NAME/"
 
 # SSC submissions must not include .pkg or stata.toc (the archive generates
-# both), and only files the installed package needs belong here. The generic
-# surveye.jar is a GitHub convenience the command never loads.
-SSC_FILES="surveye.ado surveye.sthlp $SURVEYE_RELEASE_JAR example.do LICENSE THIRDPARTY-LICENSES.md"
+# both), and only files the installed package needs belong here. The list
+# mirrors the entry already published on SSC (RePEc:boc:bocode:s459823):
+# the command, its help, the generic and the release-specific jar, and the
+# example under its published name surveye_example.do. Keeping the same
+# names means the maintainer only has to swap the versioned jar.
+SSC_FILES="surveye.ado surveye.sthlp surveye.jar $SURVEYE_RELEASE_JAR surveye_example.do LICENSE THIRDPARTY-LICENSES.md"
 for relative in $SSC_FILES; do
   cp -p "$ROOT/$relative" "$WORK/$SSC_NAME/$relative"
 done
@@ -127,7 +130,7 @@ ACTUAL="$WORK/ssc-actual.txt"
 printf '%s\n' $SSC_FILES | LC_ALL=C sort -u > "$EXPECTED"
 sed '/\/$/d; s#^\./##' "$SSC_LIST" | LC_ALL=C sort -u > "$ACTUAL"
 if ! diff -u "$EXPECTED" "$ACTUAL"; then
-  echo "FAIL: SSC archive inventory does not match surveye.pkg" >&2
+  echo "FAIL: SSC archive inventory does not match the published SSC file list" >&2
   exit 1
 fi
 
@@ -143,5 +146,12 @@ rsync -a --delete "$WORK/$SSC_NAME/" "$OUTPUT/$SSC_NAME/"
 echo "Created $OUTPUT/$SOURCE_NAME.zip"
 echo "Created $OUTPUT/$GITHUB_NAME.zip"
 echo "Created $OUTPUT/$SSC_NAME.zip"
-sha256sum "$OUTPUT/$SOURCE_NAME.zip" "$OUTPUT/$GITHUB_NAME.zip" \
-  "$OUTPUT/$SSC_NAME.zip"
+# One checksum file for the release record: the three archives, both jars,
+# and the jar's content fingerprint (comparable across build machines).
+(
+  cd "$OUTPUT"
+  sha256sum "$SOURCE_NAME.zip" "$GITHUB_NAME.zip" "$SSC_NAME.zip"
+  (cd "$ROOT" && sha256sum surveye.jar "$SURVEYE_RELEASE_JAR")
+  echo "$(java "$ROOT/scripts/JarFingerprint.java" "$ROOT/surveye.jar" | awk '{ print $1 }')  surveye.jar (content fingerprint)"
+) > "$OUTPUT/SHA256SUMS.txt"
+cat "$OUTPUT/SHA256SUMS.txt"

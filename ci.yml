@@ -1,63 +1,91 @@
 name: build
 
+# One workflow, one gate. It replaces two older files: a root-level ci.yml
+# that GitHub never ran (workflows only run from .github/workflows/), and
+# build-ssc-package.yml, which packed its own SSC archive with a different
+# file list from release.sh and committed the ZIP back to main.
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  build-and-verify:
+  gate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
+      # Java 21 builds (it is listed last, so it is the default `java`).
+      # 8, 11 and 17 are the runtimes older Stata releases bundle; the engine
+      # is run on each of them below.
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: |
+            8
+            11
+            17
+            21
 
-      # bash-invoked throughout: files uploaded through the GitHub web UI
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # bash/sh-invoked throughout: files uploaded through the GitHub web UI
       # lose their executable bit, and CI must not care.
-      - name: Build Java 8-compatible engine
+      - name: Version is identical in every file that carries it
+        run: node scripts/bump-version.js --check
+
+      - name: Fingerprint the committed engine
+        run: java scripts/JarFingerprint.java surveye.jar | tee "$RUNNER_TEMP/committed.txt"
+
+      - name: Build Java 8-compatible engine from source
         run: bash build.sh
 
-      - name: Version-agnostic package contract
+      # A mismatch means the jar in the repository was not built from the
+      # source beside it (for example, a source edit uploaded without a
+      # rebuild). It is reported, not fatal, because a JDK patch update can
+      # legitimately change compiled bytes; the tests below run against the
+      # freshly built jar either way.
+      - name: Committed engine matches source
+        continue-on-error: true
         run: |
-          VERSION="$(sed -n 's/^VERSION="\(.*\)"$/\1/p' release.sh)"
-          test -n "$VERSION"
-          JAR="surveye_$(printf '%s' "$VERSION" | tr . _).jar"
-          echo "release version: $VERSION  jar: $JAR"
-          test -f "$JAR"
-          cmp surveye.jar "$JAR"
-          unzip -t surveye.jar > /dev/null
-          javap -classpath "$JAR" -public org.worldbank.surveye.StataPlugin > /dev/null
-          javap -classpath "$JAR" -public org.worldbank.surveye.AppearancePlugin > /dev/null
-          node --check src/resources/dashboard.js
-          node --check src/resources/configurator.js
+          committed="$(awk '{ print $1 }' "$RUNNER_TEMP/committed.txt")"
+          rebuilt="$(java scripts/JarFingerprint.java surveye.jar | awk '{ print $1 }')"
+          echo "committed $committed"
+          echo "rebuilt   $rebuilt"
+          if [ "$committed" != "$rebuilt" ]; then
+            echo "::warning::surveye.jar in the repository differs in content from a fresh build of src/. Rebuild and upload both jars."
+            exit 1
+          fi
 
-      - name: Test battery
-        run: |
-          bash tests/check_stata_source.sh
-          bash tests/check_package.sh
-          node tests/test_statistics.js
-          bash tests/test_appearance.sh
-          mkdir -p tests/fixtures
-          bash tests/run_engine_smoke.sh
-          rmdir tests/fixtures 2>/dev/null || true
-          bash tests/run_surveycto_tests.sh
-          bash tests/run_configurator_tests.sh
+      - name: Portable release gate
+        run: sh tests/run_all.sh
 
-      - name: SSC manifest files exist
+      - name: Engine on Java 8, 11, 17 and 21 with a Windows default character set
         run: |
-          awk '$1=="f" || $1=="F" { print $2 }' surveye.pkg |
-            while read -r file; do test -f "$file"; done
+          sh tests/run_jvm_matrix.sh \
+            "$JAVA_HOME_8_X64/bin/java" "$JAVA_HOME_11_X64/bin/java" \
+            "$JAVA_HOME_17_X64/bin/java" "$JAVA_HOME_21_X64/bin/java"
+
+      - name: Dashboard DOM suite (jsdom)
+        run: |
+          npm install --prefix tests --no-save --no-audit --no-fund jsdom@26.1.0
+          node tests/test_dashboard_dom.js
 
       - name: Release archives
-        run: |
-          bash release.sh /tmp/surveye-release
-          VERSION="$(sed -n 's/^VERSION="\(.*\)"$/\1/p' release.sh)"
-          for suffix in "" -github -ssc; do
-            unzip -t "/tmp/surveye-release/surveye-$VERSION$suffix.zip" > /dev/null
-          done
+        run: bash release.sh "$RUNNER_TEMP/release"
+
+      - name: Upload release archives
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: surveye-release-archives
+          path: |
+            ${{ runner.temp }}/release/*.zip
+            ${{ runner.temp }}/release/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 90

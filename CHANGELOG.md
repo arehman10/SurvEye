@@ -5,7 +5,84 @@ development names are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and releases use
 semantic versioning.
 
-## [Unreleased]
+## [2.3.5] — release-readiness update, 2026-11-09
+
+One user-visible bug fix; everything else makes the release itself
+trustworthy. No calculation, chart, option or default changed, so dashboards
+built with 2.3.4 show the same numbers when rebuilt with 2.3.5.
+
+### Fixed
+- SE-001: the command configurator always writes the selected theme into the
+  Stata command it produces, including `theme(worldbank)`. Before, choosing
+  Worldbank left the option out, and Stata then used its own default
+  (`editorial`), so the command did not reproduce what was on screen.
+- The "Generated" time in the dashboard footer is whole seconds. It used to
+  print 3, 6 or 9 decimals depending on which Java version Stata bundled.
+- `help surveye` carries its version line again (it was dropped in the
+  September help rewrite), so the help and the command can be matched.
+- `surveye_example.do` names itself, not `example.do`, in its usage message.
+- Five lines of `surveye.ado` had Windows line endings in an otherwise Unix
+  file; the file is uniform again. No code changed.
+
+### Release engineering
+- The engine now runs, in the test gate, on real Java 8, 11, 17 and 21
+  virtual machines with a Windows-style (Cp1252) default character set:
+  15 regression classes and 4 dashboards (English, dark, Arabic, Urdu) per
+  runtime, each dashboard byte-identical to the build JDK's output. Earlier
+  releases were compiled for Java 8 but had only ever run on one recent JVM.
+  See `tests/run_jvm_matrix.sh`.
+- `scripts/bump-version.js` changes the version in all 15 places at once,
+  refuses to touch anything if a place does not look as expected, and
+  `--check` (now part of the gate) fails on any drift.
+- `scripts/JarFingerprint.java` prints a content fingerprint of a jar that
+  ignores dates, compression and build-tool lines, so a jar rebuilt on
+  another machine can be proven to hold the same engine.
+- One working CI workflow (`.github/workflows/ci.yml`) replaces a root-level
+  `ci.yml` that GitHub never ran and an SSC-archive workflow whose file list
+  disagreed with `release.sh`.
+- `release.sh` builds the SSC archive with the file names already published
+  on SSC (both jars and `surveye_example.do`) and writes `SHA256SUMS.txt`.
+- New engine name `surveye_2_3_5.jar`. Two different files had both been
+  called `surveye_2_3_4.jar` (the September tested build and a November
+  rebuild carrying the SE-001 fix); a new name ends that ambiguity.
+- Regenerated `examples/sample_dashboard.html` and
+  `examples/surveye_review_dashboard.html` with this engine; the jsdom DOM
+  suite passes against them.
+
+### Verification and limits
+- Portable gate, JVM matrix, jsdom suite and a headless-Chromium pass ran on
+  Linux for this release. Licensed Stata was **not** run for 2.3.5; the last
+  full Stata run is 2.3.4 (see `docs/history/QA_REPORT-2.3.4.md`). `QA_REPORT.md`
+  lists the short Stata checks to run before distributing.
+
+## [2.3.4] — Windows/Stata and Chrome-tested candidate, 2026-09-19
+
+### Fixed
+- Refresh numeric Stats headlines, hover text, and accessible descriptions with the displayed sample; restore grouped descriptions when returning to Distribution.
+- Save a pending chart title when Done is clicked and report clipboard fallback success only when copying succeeds.
+- Keep chart customization dialogs inside short viewports, with scrolling when needed.
+- Improve editorial small-text contrast and card-title sizing, and make dark customization headings readable.
+
+### Testing and distribution
+- Add reader-action and numeric-view lifecycle regressions; rerun the complete licensed-Stata option matrix and Windows engine gates.
+- Validate all five generated themes in Chrome at desktop and phone widths, including live filtering, Stats, title saving, and popup placement.
+- Introduce surveye_2_3_4.jar; see QA_REPORT.md for release evidence and the tested-platform scope. No external publication is implied.
+
+## [2.3.3] — Windows/Stata-tested candidate, 2026-09-19
+
+### Fixed
+- Resolve relative file options against Stata's working directory, including after the JVM has loaded; preserve literal macro-looking text and filenames across the wrapper, status reader, and appearance bridge.
+- Repair Stata syntax declarations for addtosections() and tableweightlabel(); accept ordinary/compound quotes in questions(), exclude(), tablestats(), and tablelabels().
+- Reject empty trailing pipe-list entries consistently and preserve intentional quotes in table headings.
+- Preserve questionnaire categorical semantics for table-only variables, so automatic binary summaries agree with their charted counterparts.
+- Validate logo content and extension before embedding an image.
+- Repair configurator theme export, exact comparison codes, dependent selection cleanup, saved-state recovery, exchange-rate validation, grouping constraints, and comparison eligibility.
+
+### Testing and distribution
+- Add a repeatable licensed-Stata option matrix, state/file/quote regressions, and independent checks of generated data and statistics.
+- Add Windows build, engine, Stata, synthetic-boundary, and packaging helpers; validate declared runtime files and embedded-resource parity.
+- Introduce the release-specific surveye_2_3_3.jar to distinguish the corrected engine; document configure and comparison limits.
+- See QA_REPORT.md for executed results and the unverified browser/environment scope. No external publication is implied.
 
 ## [2.3.2] — local review candidate, 2026-09-05
 

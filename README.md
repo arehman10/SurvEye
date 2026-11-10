@@ -1,89 +1,72 @@
-# SurvEye
+# Example output
 
-**Interactive survey dashboards, directly from Stata.**
+The current Admin-2 review preview is `surveye_admin2_review.html`.
+The country-outline-only companion is `surveye_review_dashboard.html`. It uses
+240 synthetic interviews and 120 questionnaire items to exercise the original
+single-page layout with the bug fixes. It includes the original header, filter
+controls, highlights, profile table, map, and chart sections. No real survey
+responses are included.
 
-SurvEye turns your questionnaire and Stata data into a single HTML dashboard. It uses the questionnaire's labels and sections to organize charts and statistics automatically—no chart or web code required.
+Rebuild the current preview from the repository root:
 
-Open the finished file in a browser. Your readers do not need Stata.
-
-![SurvEye dashboard with filters, summary cards, and a profile table](docs/review-2.3.2/overview-light.png)
-
-*Preview uses synthetic data, not real survey findings.*
-
-## What you can do
-
-- **Explore responses:** view charts, distributions, and summary statistics by questionnaire section.
-- **Compare groups:** filter by variables such as region or sector, use survey weights, and export charts or filtered data.
-- **Add maps:** show interview locations with country or district boundaries, including compatible boundary ZIP files.
-
-## What you need
-
-**Stata 16 or newer with Java enabled**, your survey dataset, and its questionnaire:
-
-- **Survey Solutions:** questionnaire preview in HTML.
-- **SurveyCTO:** form definition in XML (preferred), or a supported printable form in HTML.
-
-No Python, R, or separate web server is needed.
-
-## Install
-
-Run this in Stata:
-
-```stata
-net install surveye, from("https://raw.githubusercontent.com/arehman10/SurvEye/main/") replace
+```bash
+python3 tests/review_demo_generate.py
+mkdir -p build
+java -jar surveye.jar --config tests/review_demo_config.tsv
 ```
 
-Restart Stata after updating an existing installation. Regenerate old dashboards to apply updates.
+The fixture generator is deterministic. `tests/review_demo_expected.json`
+contains independently calculated reference values, and
+`tests/README_REVIEW_DEMO.md` explains the sample and assumptions. The fixed
+exchange rate is a demonstration setting, not a current market rate.
 
-## Create your first dashboard
+Which engine built each file (the footer of every dashboard shows it):
 
-Load your data and point SurvEye to the matching questionnaire:
+| File | Built with | How to rebuild |
+| --- | --- | --- |
+| `surveye_review_dashboard.html` | current release | `java -jar surveye.jar --config tests/review_demo_config.tsv` |
+| `sample_dashboard.html` | current release | `java -jar surveye.jar --config tests/sample_dashboard_config.tsv` |
+| `surveye_admin2_review.html` | 2.3.2 | needs the World Bank Admin-2 boundary ZIP, which is not redistributed; see below |
+| `feature_preview_2_2_0.html`, `surveycto_demo_preview.html` | 2.2.0 | historical; kept for comparison only |
 
-```stata
-use "survey_data.dta", clear
+Rebuild the first two after any change to `src/resources/`; the DOM test
+(`node tests/test_dashboard_dom.js`) fails when they fall behind the source.
+Regenerate old reports with the current engine to receive the data and
+calculation fixes.
 
-surveye using "questionnaire.html", ///
-    saving("dashboard.html") open
-```
+The preview embeds Chart.js, Leaflet, its synthetic records and boundary
+geometry. Google/OpenStreetMap background tiles require an internet connection;
+the synthetic GPS points remain part of the local HTML file.
 
-Replace the filenames with your own. For SurveyCTO, use your XML or HTML questionnaire instead. SurvEye saves `dashboard.html` and opens it in your browser.
-
-Add `replace` to overwrite an existing dashboard.
-
-### Add a title and filters
-
-For a dataset containing `region` and `sector`:
-
-```stata
-surveye using "questionnaire.html", ///
-    saving("dashboard.html") ///
-    title("Survey results") ///
-    filters(region sector) ///
-    replace open
-```
-
-Readers can then select a region or sector to update the results.
-
-## Privacy and offline use
-
-**The dashboard contains data, not just pictures.** SurvEye processes data locally and does not upload survey responses. However, the HTML embeds selected data and may include precise GPS coordinates. Store and share it with the same care as the source dataset.
-
-Charts, survey points, and embedded boundaries work offline. Background map tiles require internet access.
-
-## Help
-
-For all options—including weights, maps, themes, and simulated-data previews—run:
+For a localized output, copy the review configuration and add `uilanguage` and
+`direction` rows, or use the corresponding Stata options:
 
 ```stata
-help surveye
+surveye using "questionnaire_ar.html", saving("dashboard_ar.html") ///
+    uilanguage(ar) direction(auto) replace
+
+surveye using "questionnaire_ur.html", saving("dashboard_ur.html") ///
+    uilanguage(ur) direction(rtl) replace
 ```
 
-[Example commands](example.do) · [Release notes](CHANGELOG.md) · [Report a problem](https://github.com/arehman10/SurvEye/issues)
+Native Stata weights follow the `using` filename and precede the comma, for
+example `[pw=pop]`. Confidence intervals are off by default; `ci level(90)` opts
+in for eligible categorical/multiselect bars. Binary, completion, and donut
+cards remain CI-free. Importance weights produce descriptive estimates and
+suppress requested intervals.
 
-## Author and license
+## Supplied World Bank Admin-2 archive
 
-**Attique Ur Rehman** · Enterprise Analysis Unit, World Bank
+From the repository root, regenerate the current district preview using the
+actual archive path (standard-library Python helper plus Java):
 
-Developed with AI assistance. Thanks to [Fahad Mirza](https://github.com/fahad-mirza) for guidance and inspiration from his Stata tools.
+```bash
+python3 tests/generate_admin2_review.py "/path/World Bank Official Boundaries - Admin 2_mac.zip" --replace
+```
 
-[MIT License](LICENSE). An independent utility; its outputs do not necessarily represent World Bank views. Not affiliated with or endorsed by SurveyCTO.
+`tests/review_admin2_data.csv` retains the original synthetic survey responses
+and weights but uses new invented land coordinates in the corresponding four
+Sri Lankan provinces. Locations were generated with seed 23220260905 and checked
+against the supplied geometry. The original synthetic CSV was not overwritten.
+`review_admin2_config.tsv.in` is a template, not a ready-to-run config: the helper
+substitutes the explicit archive path and writes the temporary config under build/.

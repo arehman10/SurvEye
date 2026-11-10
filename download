@@ -1,0 +1,12 @@
+# Local build and QA output. Nothing here is part of the package.
+/build/
+/release/
+node_modules/
+*.log
+*.class
+__pycache__/
+.DS_Store
+__MACOSX/
+# Release archives are attached to GitHub releases, not committed.
+/surveye-*.zip
+/surveye_*_ssc.zip*

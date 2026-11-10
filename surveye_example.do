@@ -1,4 +1,4 @@
-*! SurvEye example 2.3.1 04sep2026
+*! SurvEye example 2.3.5 09nov2026
 version 16.0
 clear all
 set more off
@@ -6,7 +6,7 @@ set more off
 /*
 Run this starter from Stata with three quoted arguments:
 
-    do example.do "questionnaire.html" "survey_data.dta" "dashboard.html"
+    do surveye_example.do "questionnaire.html" "survey_data.dta" "dashboard.html"
 
 The questionnaire may be a Survey Solutions preview (.html) or a SurveyCTO
 form definition (.xml) / printable form (.html); detection is by content.
@@ -19,7 +19,7 @@ args questionnaire datafile dashboard
 
 if `"`questionnaire'"' == "" | `"`datafile'"' == "" | `"`dashboard'"' == "" {
     display as error "Three arguments are required.  Example:"
-    display as error `"  do example.do "questionnaire.html" "survey_data.dta" "dashboard.html""'
+    display as error `"  do surveye_example.do "questionnaire.html" "survey_data.dta" "dashboard.html""'
     exit 198
 }
 

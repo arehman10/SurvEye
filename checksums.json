@@ -1,0 +1,22 @@
+{
+  "SurvEye-2.3.1-review(1).zip": {
+    "bytes": 5344184,
+    "sha256": "5c2ccf818514cac70476c170659c934c1a403c8712f034ef983eaf80a3074b18"
+  },
+  "World Bank Official Boundaries - Admin 2_mac.zip": {
+    "bytes": 124914934,
+    "sha256": "d681e978b1ef8a923f08603fabe956514240821ea4bfaf81785d05d53bc92638"
+  },
+  "surveye.jar": {
+    "bytes": 1142431,
+    "sha256": "fd86e8fbbeb2b1b2589653da6861de500e8e7c2ba6d4765035841abc7135c8cf"
+  },
+  "surveye_2_3_2.jar": {
+    "bytes": 1142431,
+    "sha256": "fd86e8fbbeb2b1b2589653da6861de500e8e7c2ba6d4765035841abc7135c8cf"
+  },
+  "surveye_admin2_review.html": {
+    "bytes": 1550882,
+    "sha256": "4e7318c6f402393e73ef7f86747d5aedec879d4b26aa00e6284501f045de93ae"
+  }
+}
